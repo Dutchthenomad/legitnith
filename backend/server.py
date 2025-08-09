@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -73,10 +73,33 @@ async def ensure_indexes():
     await db.trades.create_index([("gameId", 1), ("tickIndex", 1)])
     await db.games.create_index([("id", 1)], unique=True)
     await db.games.create_index([("phase", 1)])
+    await db.games.create_index([("hasGodCandle", 1)])
+    await db.games.create_index([("prngVerified", 1)])
     await db.events.create_index([("type", 1), ("createdAt", -1)])
     await db.prng_tracking.create_index([("gameId", 1)], unique=True)
+    await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)])
 
-# ---- Alea seedrandom port (matches JS seedrandom default) ----
+    # TTL for snapshots: 10 days
+    try:
+        await db.game_state_snapshots.create_index(
+            [("createdAt", 1)],
+            expireAfterSeconds=864000,  # 10 days
+            name="snapshots_ttl_10d",
+        )
+    except Exception as e:
+        # If exists with different TTL, try collMod to update
+        try:
+            await db.command(
+                {
+                    "collMod": "game_state_snapshots",
+                    "index": {"name": "snapshots_ttl_10d", "expireAfterSeconds": 864000},
+                }
+            )
+        except Exception:
+            logger.warning(f"TTL index ensure warning: {e}")
+
+# ---- Alea seedrandom port ----
+
 def _mash():
     n = 0xefc8249d
 
@@ -94,6 +117,7 @@ def _mash():
         return (n & 0xffffffff) * 2.3283064365386963e-10
 
     return mash
+
 
 def seedrandom_alea(seed: str):
     mash = _mash()
@@ -208,14 +232,12 @@ async def run_prng_verification(game_id: str):
         expected_peak = hist.get("peakMultiplier") or hist.get("peak")
 
     if expected_prices is None:
-        # fallback to the last snapshot with prices
         last_snap = await db.game_state_snapshots.find({"gameId": game_id}).sort("createdAt", -1).limit(1).to_list(1)
         if last_snap:
             expected_prices = (last_snap[0].get("payload") or {}).get("prices")
             expected_peak = (last_snap[0].get("payload") or {}).get("peakMultiplier")
 
     if not expected_prices:
-        # Can't verify without expected
         await db.prng_tracking.update_one(
             {"gameId": game_id},
             {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}},
@@ -223,10 +245,8 @@ async def run_prng_verification(game_id: str):
         )
         return {"status": "MISSING_EXPECTED"}
 
-    # Compute verification
     verified = verify_game(server_seed, game_id, version)
 
-    # Compare with tolerance
     def arrays_match(a, b, eps=1e-6):
         if len(a) != len(b):
             return False
@@ -260,7 +280,6 @@ async def run_prng_verification(game_id: str):
         "verifiedAt": now_utc().isoformat(),
     }
 
-    # Persist to tracking and games
     await db.prng_tracking.update_one(
         {"gameId": game_id},
         {
@@ -302,6 +321,8 @@ class RugsSocketService:
         # runtime tracking
         self.current_game_id: Optional[str] = None
         self.game_stats: Dict[str, Dict[str, Any]] = {}
+        # game_stats[gid] example fields:
+        #   last_price, last_tick, peak, ticks, god_candle_seen
 
         # Bind handlers
         @self.sio.event
@@ -403,7 +424,7 @@ class RugsSocketService:
         # Detect new active game
         if data.get("active") and (self.current_game_id != game_id):
             self.current_game_id = game_id
-            self.game_stats[game_id] = {"peak": float(price), "ticks": int(tick_count)}
+            self.game_stats[game_id] = {"peak": float(price), "ticks": int(tick_count), "last_price": float(price), "last_tick": int(tick_count), "god_candle_seen": False}
 
             # Record current game in meta for quick lookup
             await self.db.meta.update_one(
@@ -450,11 +471,49 @@ class RugsSocketService:
 
         # Update running peak and ticks for active game
         if game_id:
-            stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0}
+            stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0, "last_price": float(price), "last_tick": int(tick_count), "god_candle_seen": False}
             new_peak = stats["peak"]
             if isinstance(price, (float, int)) and price > stats["peak"]:
                 new_peak = float(price)
-            stats.update({"peak": new_peak, "ticks": int(tick_count)})
+            # God Candle detection: compare previous price to current
+            prev_price = None
+            # Prefer payload prices for precise prev value
+            prices_arr = data.get("prices")
+            if isinstance(prices_arr, list) and len(prices_arr) >= 2:
+                prev_price = float(prices_arr[-2])
+            else:
+                prev_price = float(stats.get("last_price") or price)
+
+            ratio = (float(price) / prev_price) if prev_price and prev_price > 0 else 1.0
+            is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (not stats.get("god_candle_seen"))
+            if is_god_candle:
+                try:
+                    doc = {
+                        "_id": str(uuid.uuid4()),
+                        "gameId": game_id,
+                        "tickIndex": int(tick_count),
+                        "fromPrice": prev_price,
+                        "toPrice": float(price),
+                        "ratio": ratio,
+                        "createdAt": now_utc(),
+                    }
+                    await self.db.god_candles.insert_one(doc)
+                    await self.db.games.update_one(
+                        {"id": game_id},
+                        {"$set": {
+                            "hasGodCandle": True,
+                            "godCandleTick": int(tick_count),
+                            "godCandleFromPrice": prev_price,
+                            "godCandleToPrice": float(price),
+                            "updatedAt": now_utc(),
+                        }}
+                    )
+                    stats["god_candle_seen"] = True
+                    logger.info(f"God Candle detected for game {game_id} at tick {tick_count}: {prev_price} -> {price}")
+                except Exception as e:
+                    logger.error(f"God Candle persist error: {e}")
+
+            stats.update({"peak": new_peak, "ticks": int(tick_count), "last_price": float(price), "last_tick": int(tick_count)})
             self.game_stats[game_id] = stats
 
             # Persist rolling stats and phase
@@ -530,16 +589,24 @@ class RugsSocketService:
                             {"$set": {"serverSeed": srv_seed, "status": "COMPLETE", "updatedAt": now_utc()}},
                             upsert=True,
                         )
-                        # schedule verification
                         asyncio.create_task(run_prng_verification(gid))
                     await self.db.games.update_one({"id": gid}, {"$set": updates}, upsert=True)
         except Exception as e:
             logger.error(f"History upsert error: {e}")
 
-        # RUG end detection: set endTime on current game if rugged
+        # RUG end detection: set rugTick and endPrice at final rug
         if data.get("rugged") and game_id:
             try:
-                await self.db.games.update_one({"id": game_id}, {"$set": {"endTime": now_utc(), "phase": "RUG", "lastSeenAt": now_utc()}})
+                await self.db.games.update_one(
+                    {"id": game_id},
+                    {"$set": {
+                        "endTime": now_utc(),
+                        "phase": "RUG",
+                        "lastSeenAt": now_utc(),
+                        "rugTick": int(tick_count),
+                        "endPrice": float(price),
+                    }}
+                )
             except Exception as e:
                 logger.error(f"RUG end update error: {e}")
 
@@ -655,6 +722,19 @@ async def snapshots(limit: int = 50):
             r["createdAt"] = r["createdAt"].isoformat()
     return {"items": rows}
 
+@api_router.get("/god-candles")
+async def god_candles(gameId: Optional[str] = Query(default=None), limit: int = 50):
+    limit = max(1, min(limit, 200))
+    q: Dict[str, Any] = {}
+    if gameId:
+        q["gameId"] = gameId
+    rows = await db.god_candles.find(q).sort("createdAt", -1).to_list(limit)
+    for r in rows:
+        r["id"] = r.pop("_id", None)
+        if isinstance(r.get("createdAt"), datetime):
+            r["createdAt"] = r["createdAt"].isoformat()
+    return {"items": rows}
+
 @api_router.get("/games")
 async def games(limit: int = 50):
     limit = max(1, min(limit, 200))
@@ -678,7 +758,6 @@ async def game_current():
     if not g:
         return {}
     g.pop("_id", None)
-    # stringify dates
     for dkey in ["startTime", "endTime", "lastSeenAt", "createdAt", "updatedAt"]:
         if isinstance(g.get(dkey), datetime):
             g[dkey] = g[dkey].isoformat()
