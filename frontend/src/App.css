@@ -1,8 +1,38 @@
-/* Minimal custom styles; we will lean on Tailwind + shadcn */
-:root { --hud-bg: rgba(8,10,12,0.6); --hud-border: rgba(255,255,255,0.08); }
+@import url('https://fonts.googleapis.com/css2?family=Dynapuff:wght@400;600;700&display=swap');
 
-.hud-card { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: var(--hud-bg); border: 1px solid var(--hud-border); border-radius: 12px; }
+/* Theme palette approximating Rugs.fun */
+:root {
+  --rugs-bg: #15161d;
+  --rugs-fg: #f8f8fc;
+  --rugs-card: #1e202a;
+  --rugs-card-fg: #ffffff;
+  --rugs-border: #383943;
+  --rugs-muted: #272935;
+  --rugs-muted-fg: #a1a5ba;
+  --rugs-primary: #ffc700;
+  --rugs-primary-fore: #15161d;
+  --rugs-primary-hover: #e6b400;
+  --rugs-secondary: #ef7104;
+  --rugs-success: #19b55a;
+  --rugs-danger: #ff3b5d;
+}
+
+body { background: var(--rugs-bg); color: var(--rugs-fg); }
+
+.brand { font-family: 'Dynapuff', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; letter-spacing: 0.2px; }
+
+.hud-card { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: var(--rugs-card); border: 1px solid var(--rugs-border); border-radius: 12px; }
 
 .code-block { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; line-height: 1.4; }
 
 .badge-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
+
+.header { background: rgba(21,22,29,0.8); border-bottom: 1px solid var(--rugs-border); }
+
+.btn-primary { background: var(--rugs-primary); color: var(--rugs-primary-fore); border: 1px solid #e6b400; }
+.btn-primary:hover { background: var(--rugs-primary-hover); }
+
+.kv { font-size: 12px; color: var(--rugs-muted-fg); text-transform: uppercase; letter-spacing: 0.08em; }
+.kv-val { font-size: 13px; font-weight: 600; }
+
+.tabs-bg { background: var(--rugs-muted); border: 1px solid var(--rugs-border); border-radius: 10px; }
