@@ -246,13 +246,17 @@ def main():
     
     tester = RugsDataServiceTester()
     
-    # Run all tests
+    # Run all tests in order (some depend on previous results)
     results = []
     results.append(("Health Check", tester.test_health()))
     results.append(("Connection Status", tester.test_connection()))
     results.append(("Live State", tester.test_live_state()))
     results.append(("Snapshots", tester.test_snapshots()))
     results.append(("Games", tester.test_games()))
+    results.append(("Current Game", tester.test_games_current()))
+    results.append(("Game by ID", tester.test_game_by_id()))
+    results.append(("PRNG Tracking", tester.test_prng_tracking()))
+    results.append(("Game Verification", tester.test_game_verification()))
     results.append(("Negative Cases", tester.test_negative_cases()))
     
     # Print summary
