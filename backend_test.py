@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 
 class RugsDataServiceTester:
-    def __init__(self, base_url="https://ec5c8aab-fa3e-4846-9364-53e6a6e82b1b.preview.emergentagent.com"):
+    def __init__(self, base_url="https://c12b2db4-f7fe-423b-ba3e-d38ed75cde89.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
         self.tests_run = 0
