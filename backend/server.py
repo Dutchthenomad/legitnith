@@ -236,6 +236,103 @@ def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str
         "totalTicks": len(prices) - 1,
     }
 
+
+async def run_prng_verification(game_id: str):
+    tracking = await db.prng_tracking.find_one({"gameId": game_id})
+    game = await db.games.find_one({"id": game_id})
+    if not tracking and not game:
+        raise HTTPException(status_code=404, detail="game not found")
+
+    server_seed = (tracking or {}).get("serverSeed") or (game or {}).get("serverSeed")
+    server_seed_hash = (tracking or {}).get("serverSeedHash") or ((game or {}).get("serverSeedHash"))
+    version = (tracking or {}).get("version") or (game or {}).get("version") or 'v3'
+
+    if not server_seed:
+        await db.prng_tracking.update_one(
+            {"gameId": game_id},
+            {"$set": {"status": "AWAITING_SEED", "updatedAt": now_utc()}},
+            upsert=True,
+        )
+        return {"status": "AWAITING_SEED"}
+
+    # Determine expected arrays
+    expected_prices = None
+    expected_peak = None
+    if game and isinstance(game.get("history"), dict):
+        hist = game["history"]
+        expected_prices = hist.get("prices")
+        expected_peak = hist.get("peakMultiplier") or hist.get("peak")
+
+    if expected_prices is None:
+        last_snap = await db.game_state_snapshots.find({"gameId": game_id}).sort("createdAt", -1).limit(1).to_list(1)
+        if last_snap:
+            expected_prices = (last_snap[0].get("payload") or {}).get("prices")
+            expected_peak = (last_snap[0].get("payload") or {}).get("peakMultiplier")
+
+    if not expected_prices:
+        await db.prng_tracking.update_one(
+            {"gameId": game_id},
+            {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}},
+            upsert=True,
+        )
+        return {"status": "MISSING_EXPECTED"}
+
+    verified = verify_game(server_seed, game_id, version)
+
+    def arrays_match(a, b, eps=1e-6):
+        if len(a) != len(b):
+            return False
+        for i in range(len(a)):
+            if abs(float(a[i]) - float(b[i])) > eps:
+                return False
+        return True
+
+    match = arrays_match(expected_prices, verified["prices"]) and (
+        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) < 1e-6
+    )
+
+    result = {
+        "gameId": game_id,
+        "serverSeed": server_seed,
+        "serverSeedHash": server_seed_hash,
+        "version": version,
+        "calculated": {
+            "peakMultiplier": verified["peakMultiplier"],
+            "totalTicks": verified["totalTicks"],
+            "lastPrice": verified["prices"][-1],
+            "length": len(verified["prices"]),
+        },
+        "expected": {
+            "peakMultiplier": expected_peak,
+            "totalTicks": len(expected_prices) - 1,
+            "lastPrice": expected_prices[-1],
+            "length": len(expected_prices),
+        },
+        "fullVerification": match,
+        "verifiedAt": now_utc().isoformat(),
+    }
+
+    await db.prng_tracking.update_one(
+        {"gameId": game_id},
+        {
+            "$set": {
+                "serverSeed": server_seed,
+                "status": "VERIFIED" if match else "FAILED",
+                "verification": result,
+                "updatedAt": now_utc(),
+            }
+        },
+        upsert=True,
+    )
+
+    if game:
+        await db.games.update_one(
+            {"id": game_id},
+            {"$set": {"prngVerified": bool(match), "prngVerificationData": result, "updatedAt": now_utc()}},
+        )
+
+    return result
+
 ########################################################
 # Broadcaster for downstream consumers (WebSocket /api/ws/stream)
 ########################################################
