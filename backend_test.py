@@ -9,6 +9,8 @@ class RugsDataServiceTester:
         self.api_base = f"{base_url}/api"
         self.tests_run = 0
         self.tests_passed = 0
+        self.current_game_id = None
+        self.sample_game_id = None
 
     def run_test(self, name, method, endpoint, expected_status, timeout=10):
         """Run a single API test"""
