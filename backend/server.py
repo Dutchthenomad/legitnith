@@ -119,7 +119,14 @@ async def ensure_indexes():
 
     # PRNG tracking & god candles
     await db.prng_tracking.create_index([("gameId", 1)], unique=True)
-    await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)])
+    # Unique per (gameId, tickIndex) to avoid duplicate records for same tick
+    try:
+        await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)], unique=True, name="uniq_game_tick")
+    except Exception:
+        # Fallback non-unique exists; acceptable
+        await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)], name="idx_game_tick")
+    await db.god_candles.create_index([("createdAt", -1)])
+    await db.god_candles.create_index([("underCap", 1)])
 
 # ---- Alea seedrandom port ----
 
@@ -236,11 +243,7 @@ async def run_prng_verification(game_id: str):
     version = (tracking or {}).get("version") or (game or {}).get("version") or 'v3'
 
     if not server_seed:
-        await db.prng_tracking.update_one(
-            {"gameId": game_id},
-            {"$set": {"status": "AWAITING_SEED", "updatedAt": now_utc()}},
-            upsert=True,
-        )
+        await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"status": "AWAITING_SEED", "updatedAt": now_utc()}}, upsert=True)
         return {"status": "AWAITING_SEED"}
 
     expected_prices = None
@@ -257,11 +260,7 @@ async def run_prng_verification(game_id: str):
             expected_peak = (last_snap[0].get("payload") or {}).get("peakMultiplier")
 
     if not expected_prices:
-        await db.prng_tracking.update_one(
-            {"gameId": game_id},
-            {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}},
-            upsert=True,
-        )
+        await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}}, upsert=True)
         return {"status": "MISSING_EXPECTED"}
 
     verified = verify_game(server_seed, game_id, version)
@@ -283,40 +282,16 @@ async def run_prng_verification(game_id: str):
         "serverSeed": server_seed,
         "serverSeedHash": server_seed_hash,
         "version": version,
-        "calculated": {
-            "peakMultiplier": verified["peakMultiplier"],
-            "totalTicks": verified["totalTicks"],
-            "lastPrice": verified["prices"][-1],
-            "length": len(verified["prices"]),
-        },
-        "expected": {
-            "peakMultiplier": expected_peak,
-            "totalTicks": len(expected_prices) - 1,
-            "lastPrice": expected_prices[-1],
-            "length": len(expected_prices),
-        },
+        "calculated": {"peakMultiplier": verified["peakMultiplier"], "totalTicks": verified["totalTicks"], "lastPrice": verified["prices"][-1], "length": len(verified["prices"])},
+        "expected": {"peakMultiplier": expected_peak, "totalTicks": len(expected_prices) - 1, "lastPrice": expected_prices[-1], "length": len(expected_prices)},
         "fullVerification": match,
         "verifiedAt": now_utc().isoformat(),
     }
 
-    await db.prng_tracking.update_one(
-        {"gameId": game_id},
-        {
-            "$set": {
-                "serverSeed": server_seed,
-                "status": "VERIFIED" if match else "FAILED",
-                "verification": result,
-                "updatedAt": now_utc(),
-            }
-        },
-        upsert=True,
-    )
+    await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"serverSeed": server_seed, "status": "VERIFIED" if match else "FAILED", "verification": result, "updatedAt": now_utc()}}, upsert=True)
 
     if game:
-        await db.games.update_one(
-            {"id": game_id},
-            {"$set": {"prngVerified": bool(match), "prngVerificationData": result, "updatedAt": now_utc()}},
-        )
+        await db.games.update_one({"id": game_id}, {"$set": {"prngVerified": bool(match), "prngVerificationData": result, "updatedAt": now_utc()}})
 
     return result
 
@@ -413,14 +388,7 @@ class RugsSocketService:
                 backoff = min(backoff * 2, 30)
 
     async def _log_connection_event(self, event_type: str, metadata: Dict[str, Any]):
-        doc = {
-            "_id": str(uuid.uuid4()),
-            "socketId": self.socket_id,
-            "eventType": event_type,
-            "metadata": metadata,
-            "timestampMs": int(datetime.now(tz=timezone.utc).timestamp() * 1000),
-            "createdAt": now_utc(),
-        }
+        doc = {"_id": str(uuid.uuid4()), "socketId": self.socket_id, "eventType": event_type, "metadata": metadata, "timestampMs": int(datetime.now(tz=timezone.utc).timestamp() * 1000), "createdAt": now_utc()}
         await self.db.connection_events.insert_one(doc)
 
     async def _handle_game_state_update(self, data: Dict[str, Any]):
@@ -459,7 +427,9 @@ class RugsSocketService:
                 prev_price = float(stats.get("last_price") or price)
 
             ratio = (float(price) / prev_price) if prev_price and prev_price > 0 else 1.0
-            is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (not stats.get("god_candle_seen"))
+            # Guard: avoid duplicates; check existing record for same (gameId, tickIndex)
+            existing = await self.db.god_candles.count_documents({"gameId": game_id, "tickIndex": int(tick_count)})
+            is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
             if is_god_candle:
                 try:
                     under_cap = prev_price <= 100 * STARTING_PRICE
@@ -688,13 +658,26 @@ app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','), allow_methods=["*"], allow_headers=["*"],)
 
 ########################################################
-# Lifespan hooks
+# Lifespan hooks & backfill
 ########################################################
+
+async def backfill_god_candle_flags(limit: int = 2000):
+    try:
+        cursor = db.god_candles.find({}, {"gameId": 1, "tickIndex": 1, "fromPrice": 1, "toPrice": 1}).sort("createdAt", -1).limit(limit)
+        async for gc in cursor:
+            gid = gc.get("gameId")
+            if not gid:
+                continue
+            await db.games.update_one({"id": gid}, {"$set": {"hasGodCandle": True, "godCandleTick": int(gc.get("tickIndex", 0)), "godCandleFromPrice": float(gc.get("fromPrice", 0)), "godCandleToPrice": float(gc.get("toPrice", 0)), "updatedAt": now_utc()}}, upsert=True)
+    except Exception as e:
+        logger.warning(f"God Candle backfill warning: {e}")
 
 @app.on_event("startup")
 async def startup_event():
     global auth_svc
     await ensure_indexes()
+    # Backfill flags from existing god_candles docs (lightweight)
+    asyncio.create_task(backfill_god_candle_flags())
     auth_svc = RugsSocketService(db)
     auth_svc.start()
     logger.info("Rugs Socket Service started")
