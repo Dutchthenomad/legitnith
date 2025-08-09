@@ -41,7 +41,6 @@ function usePolling(url, intervalMs = 1000) {
 
 const Header = ({ connected, sinceConnectedMs }) => {
   useEffect(() => {
-    // enforce dark mode tokens from shadcn
     document.documentElement.classList.add("dark");
   }, []);
   return (
@@ -63,7 +62,7 @@ const Header = ({ connected, sinceConnectedMs }) => {
   );
 };
 
-const LiveOverview = ({ live, onRefresh }) => {
+const LiveOverview = ({ live, prngStatus, onRefresh, onVerify, verifying }) => {
   const items = [
     { label: "Game ID", value: live?.gameId || "-" },
     { label: "Phase", value: live?.phase || "-" },
@@ -74,14 +73,23 @@ const LiveOverview = ({ live, onRefresh }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
       {items.map((it) => (
         <div key={it.label} className="hud-card px-3 py-3">
           <div className="kv">{it.label}</div>
           <div className="kv-val mt-1 truncate" title={String(it.value)}>{it.value}</div>
         </div>
       ))}
-      <Button onClick={onRefresh} variant="secondary" className="justify-self-start h-10 btn-primary"><RefreshCcw className="w-4 h-4 mr-2" />Refresh</Button>
+      <div className="hud-card px-3 py-3 flex items-center justify-between gap-2">
+        <div>
+          <div className="kv">PRNG</div>
+          <div className="kv-val mt-1" title={prngStatus?.status || "-"}>{prngStatus?.status || "-"}</div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={onRefresh} variant="secondary" className="h-8 btn-primary"><RefreshCcw className="w-3 h-3 mr-1" />Ping</Button>
+          <Button onClick={onVerify} disabled={!live?.gameId || verifying} className="h-8 btn-primary">{verifying ? "Verifying..." : "Verify"}</Button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -100,17 +108,35 @@ function App() {
   const { data: currentGame } = usePolling(`${API}/games/current`, 2000);
   const { data: prng } = usePolling(`${API}/prng/tracking?limit=10`, 5000);
 
+  const [verifying, setVerifying] = useState(false);
+  const currentPrng = useMemo(() => {
+    if (!currentGame?.id || !prng?.items) return null;
+    return prng.items.find((i) => i.gameId === currentGame.id) || null;
+  }, [prng, currentGame]);
+
   const refresh = async () => {
     try {
       await axios.get(`${API}/health`);
     } catch (e) {}
   };
 
+  const verifyNow = async () => {
+    if (!currentGame?.id) return;
+    setVerifying(true);
+    try {
+      await axios.post(`${API}/prng/verify/${currentGame.id}`);
+    } catch (e) {
+      // ignore for HUD
+    } finally {
+      setTimeout(() => setVerifying(false), 500);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       <Header connected={!!conn?.connected} sinceConnectedMs={conn?.since_connected_ms} />
       <main className="max-w-6xl mx-auto px-6 py-6 space-y-6">
-        <LiveOverview live={live} onRefresh={refresh} />
+        <LiveOverview live={live} prngStatus={currentPrng} onRefresh={refresh} onVerify={verifyNow} verifying={verifying} />
         <div className="tabs-bg">
           <Tabs defaultValue="live" className="w-full p-3">
             <TabsList className="grid grid-cols-4 w-full">
