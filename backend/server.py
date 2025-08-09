@@ -60,7 +60,7 @@ class LiveState(BaseModel):
     updatedAt: Optional[datetime] = None
 
 ########################################################
-# Utility helpers
+# Utility helpers & PRNG verification (Alea + drift)
 ########################################################
 
 def now_utc() -> datetime:
@@ -75,6 +75,212 @@ async def ensure_indexes():
     await db.games.create_index([("phase", 1)])
     await db.events.create_index([("type", 1), ("createdAt", -1)])
     await db.prng_tracking.create_index([("gameId", 1)], unique=True)
+
+# ---- Alea seedrandom port (matches JS seedrandom default) ----
+def _mash():
+    n = 0xefc8249d
+
+    def mash(data: str) -> float:
+        nonlocal n
+        for c in data:
+            n += ord(c)
+            h = 0.02519603282416938 * n
+            n = int(h)
+            h -= n
+            h *= n
+            n = int(h)
+            h -= n
+            n += int(h * 4294967296)
+        return (n & 0xffffffff) * 2.3283064365386963e-10
+
+    return mash
+
+def seedrandom_alea(seed: str):
+    mash = _mash()
+    s0 = mash(' ')
+    s1 = mash(' ')
+    s2 = mash(' ')
+    s0 -= mash(seed)
+    if s0 < 0:
+        s0 += 1
+    s1 -= mash(seed)
+    if s1 < 0:
+        s1 += 1
+    s2 -= mash(seed)
+    if s2 < 0:
+        s2 += 1
+    c = 1
+
+    def random():
+        nonlocal s0, s1, s2, c
+        t = 2091639 * s0 + c * 2.3283064365386963e-10
+        s0 = s1
+        s1 = s2
+        s2 = t - int(t)
+        c = int(t)
+        return s2
+
+    return random
+
+# Drift & verify matching spec
+RUG_PROB = 0.005
+DRIFT_MIN = -0.02
+DRIFT_MAX = 0.03
+BIG_MOVE_CHANCE = 0.125
+BIG_MOVE_MIN = 0.15
+BIG_MOVE_MAX = 0.25
+GOD_CANDLE_CHANCE = 0.00001
+GOD_CANDLE_MOVE = 10.0
+STARTING_PRICE = 1.0
+
+
+def drift_price(price: float, rand_fn, version: str = 'v3') -> float:
+    # God candle (only v3 and price threshold approx <=100x start)
+    if version == 'v3' and rand_fn() < GOD_CANDLE_CHANCE and price <= 100 * STARTING_PRICE:
+        return price * GOD_CANDLE_MOVE
+
+    change = 0.0
+    if rand_fn() < BIG_MOVE_CHANCE:
+        move_size = BIG_MOVE_MIN + rand_fn() * (BIG_MOVE_MAX - BIG_MOVE_MIN)
+        change = move_size if rand_fn() > 0.5 else -move_size
+    else:
+        drift = DRIFT_MIN + rand_fn() * (DRIFT_MAX - DRIFT_MIN)
+        volatility = 0.005 * (min(10.0, price ** 0.5) if version != 'v1' else price ** 0.5)
+        change = drift + (volatility * (2 * rand_fn() - 1))
+
+    new_price = price * (1 + change)
+    if new_price < 0:
+        new_price = 0.0
+    return new_price
+
+
+def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str, Any]:
+    combined_seed = f"{server_seed}-{game_id}"
+    prng = seedrandom_alea(combined_seed)
+
+    price = 1.0
+    peak = 1.0
+    rugged = False
+    prices = [1.0]
+
+    for tick in range(5000):
+        if prng() < RUG_PROB:
+            rugged = True
+            break
+        price = drift_price(price, prng, version)
+        prices.append(price)
+        if price > peak:
+            peak = price
+
+    return {
+        "prices": prices,
+        "peakMultiplier": peak,
+        "rugged": rugged,
+        "totalTicks": len(prices) - 1,
+    }
+
+async def run_prng_verification(game_id: str):
+    # Gather server seed and version
+    tracking = await db.prng_tracking.find_one({"gameId": game_id})
+    game = await db.games.find_one({"id": game_id})
+    if not tracking and not game:
+        raise HTTPException(status_code=404, detail="game not found")
+
+    server_seed = (tracking or {}).get("serverSeed") or (game or {}).get("serverSeed")
+    server_seed_hash = (tracking or {}).get("serverSeedHash") or ((game or {}).get("serverSeedHash"))
+    version = (tracking or {}).get("version") or (game or {}).get("version") or 'v3'
+
+    if not server_seed:
+        # Not ready
+        await db.prng_tracking.update_one(
+            {"gameId": game_id},
+            {"$set": {"status": "AWAITING_SEED", "updatedAt": now_utc()}},
+            upsert=True,
+        )
+        return {"status": "AWAITING_SEED"}
+
+    # Determine expected arrays: prefer stored history on games
+    expected_prices = None
+    expected_peak = None
+    if game and isinstance(game.get("history"), dict):
+        hist = game["history"]
+        expected_prices = hist.get("prices")
+        expected_peak = hist.get("peakMultiplier") or hist.get("peak")
+
+    if expected_prices is None:
+        # fallback to the last snapshot with prices
+        last_snap = await db.game_state_snapshots.find({"gameId": game_id}).sort("createdAt", -1).limit(1).to_list(1)
+        if last_snap:
+            expected_prices = (last_snap[0].get("payload") or {}).get("prices")
+            expected_peak = (last_snap[0].get("payload") or {}).get("peakMultiplier")
+
+    if not expected_prices:
+        # Can't verify without expected
+        await db.prng_tracking.update_one(
+            {"gameId": game_id},
+            {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}},
+            upsert=True,
+        )
+        return {"status": "MISSING_EXPECTED"}
+
+    # Compute verification
+    verified = verify_game(server_seed, game_id, version)
+
+    # Compare with tolerance
+    def arrays_match(a, b, eps=1e-6):
+        if len(a) != len(b):
+            return False
+        for i in range(len(a)):
+            if abs(float(a[i]) - float(b[i])) > eps:
+                return False
+        return True
+
+    match = arrays_match(expected_prices, verified["prices"]) and (
+        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) < 1e-6
+    )
+
+    result = {
+        "gameId": game_id,
+        "serverSeed": server_seed,
+        "serverSeedHash": server_seed_hash,
+        "version": version,
+        "calculated": {
+            "peakMultiplier": verified["peakMultiplier"],
+            "totalTicks": verified["totalTicks"],
+            "lastPrice": verified["prices"][-1],
+            "length": len(verified["prices"]),
+        },
+        "expected": {
+            "peakMultiplier": expected_peak,
+            "totalTicks": len(expected_prices) - 1,
+            "lastPrice": expected_prices[-1],
+            "length": len(expected_prices),
+        },
+        "fullVerification": match,
+        "verifiedAt": now_utc().isoformat(),
+    }
+
+    # Persist to tracking and games
+    await db.prng_tracking.update_one(
+        {"gameId": game_id},
+        {
+            "$set": {
+                "serverSeed": server_seed,
+                "status": "VERIFIED" if match else "FAILED",
+                "verification": result,
+                "updatedAt": now_utc(),
+            }
+        },
+        upsert=True,
+    )
+
+    if game:
+        await db.games.update_one(
+            {"id": game_id},
+            {"$set": {"prngVerified": bool(match), "prngVerificationData": result, "updatedAt": now_utc()}},
+        )
+
+    return result
 
 ########################################################
 # Socket.IO Background Listener (read-only)
@@ -306,7 +512,7 @@ class RugsSocketService:
         except Exception as e:
             logger.error(f"Live state upsert error: {e}")
 
-        # If history supplied during cooldown, capture revealed server seeds for completed games
+        # If history supplied during cooldown, capture revealed server seeds for completed games & verify
         try:
             history = data.get("gameHistory")
             if isinstance(history, list):
@@ -314,7 +520,6 @@ class RugsSocketService:
                     gid = g.get("id") or g.get("gameId")
                     if not gid:
                         continue
-                    # Persist revealed serverSeed and mark completion
                     pf = (g.get("provablyFair") or {})
                     srv_seed = pf.get("serverSeed")
                     updates = {"id": gid, "history": g, "lastSeenAt": now_utc()}
@@ -325,6 +530,8 @@ class RugsSocketService:
                             {"$set": {"serverSeed": srv_seed, "status": "COMPLETE", "updatedAt": now_utc()}},
                             upsert=True,
                         )
+                        # schedule verification
+                        asyncio.create_task(run_prng_verification(gid))
                     await self.db.games.update_one({"id": gid}, {"$set": updates}, upsert=True)
         except Exception as e:
             logger.error(f"History upsert error: {e}")
@@ -511,6 +718,11 @@ async def game_verification(game_id: str):
     if isinstance(t.get("updatedAt"), datetime):
         t["updatedAt"] = t["updatedAt"].isoformat()
     return t
+
+@api_router.post("/prng/verify/{game_id}")
+async def trigger_verification(game_id: str):
+    result = await run_prng_verification(game_id)
+    return result
 
 # Include router and CORS
 app.include_router(api_router)
