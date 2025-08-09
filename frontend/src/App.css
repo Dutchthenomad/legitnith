@@ -1,34 +1,8 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
-}
+/* Minimal custom styles; we will lean on Tailwind + shadcn */
+:root { --hud-bg: rgba(8,10,12,0.6); --hud-border: rgba(255,255,255,0.08); }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
-}
+.hud-card { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); background: var(--hud-bg); border: 1px solid var(--hud-border); border-radius: 12px; }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
-}
+.code-block { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; line-height: 1.4; }
 
-.App-link {
-    color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
+.badge-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
