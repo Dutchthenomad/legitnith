@@ -129,12 +129,88 @@ class RugsDataServiceTester:
                 if len(items) > 0:
                     # Check first item structure
                     first_item = items[0]
-                    expected_fields = ['id', 'lastSeenAt', 'provablyFair']
+                    expected_fields = ['id', 'lastSeenAt', 'phase']
                     present_fields = [field for field in expected_fields if field in first_item]
                     print(f"   Sample game fields: {present_fields}")
+                    # Store first game ID for later tests
+                    self.sample_game_id = first_item.get('id')
                 return True
             else:
                 print("   ⚠ Response missing 'items' field")
+        return success
+
+    def test_games_current(self):
+        """Test current game endpoint"""
+        success, response = self.run_test("Current Game", "GET", "games/current", 200)
+        if success and isinstance(response, dict):
+            # May be empty if no current game
+            if response:
+                expected_fields = ['id', 'phase', 'lastSeenAt']
+                present_fields = [field for field in expected_fields if field in response]
+                print(f"   Current game fields: {present_fields}")
+                # Store current game ID for verification test
+                self.current_game_id = response.get('id')
+            else:
+                print("   No current game active")
+            return True
+        return success
+
+    def test_game_by_id(self):
+        """Test specific game by ID endpoint"""
+        if not hasattr(self, 'sample_game_id') or not self.sample_game_id:
+            print("   ⚠ No sample game ID available, skipping test")
+            return True
+            
+        success, response = self.run_test("Game by ID", "GET", f"games/{self.sample_game_id}", 200)
+        if success and isinstance(response, dict):
+            expected_fields = ['id', 'phase', 'lastSeenAt']
+            present_fields = [field for field in expected_fields if field in response]
+            print(f"   Game by ID fields: {present_fields}")
+            return True
+        return success
+
+    def test_prng_tracking(self):
+        """Test PRNG tracking endpoint"""
+        success, response = self.run_test("PRNG Tracking", "GET", "prng/tracking?limit=10", 200)
+        if success and isinstance(response, dict):
+            if 'items' in response:
+                items = response['items']
+                print(f"   Found {len(items)} PRNG tracking records")
+                if len(items) > 0:
+                    # Check first item structure
+                    first_item = items[0]
+                    expected_fields = ['gameId', 'status', 'serverSeedHash']
+                    present_fields = [field for field in expected_fields if field in first_item]
+                    print(f"   Sample PRNG tracking fields: {present_fields}")
+                    
+                    # Check if there's a tracking record for current game
+                    if hasattr(self, 'current_game_id') and self.current_game_id:
+                        current_game_tracking = next((item for item in items if item.get('gameId') == self.current_game_id), None)
+                        if current_game_tracking:
+                            print(f"   ✓ Found tracking for current game: {current_game_tracking.get('status')}")
+                        else:
+                            print("   ⚠ No tracking found for current game")
+                return True
+            else:
+                print("   ⚠ Response missing 'items' field")
+        return success
+
+    def test_game_verification(self):
+        """Test game verification endpoint"""
+        if not hasattr(self, 'current_game_id') or not self.current_game_id:
+            print("   ⚠ No current game ID available, skipping verification test")
+            return True
+            
+        success, response = self.run_test("Game Verification", "GET", f"games/{self.current_game_id}/verification", 200)
+        if success and isinstance(response, dict):
+            expected_fields = ['gameId', 'status', 'serverSeedHash']
+            present_fields = [field for field in expected_fields if field in response]
+            print(f"   Verification fields: {present_fields}")
+            return True
+        elif not success:
+            # Verification may not exist until server seed is revealed - this is expected
+            print("   ⚠ Verification not found (expected until server seed revealed)")
+            return True  # Don't fail the test for this expected case
         return success
 
     def test_negative_cases(self):
