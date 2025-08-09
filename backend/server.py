@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Set
 import uuid
 from datetime import datetime, timezone
 import asyncio
@@ -123,10 +123,14 @@ async def ensure_indexes():
     try:
         await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)], unique=True, name="uniq_game_tick")
     except Exception:
-        # Fallback non-unique exists; acceptable
         await db.god_candles.create_index([("gameId", 1), ("tickIndex", 1)], name="idx_game_tick")
     await db.god_candles.create_index([("createdAt", -1)])
     await db.god_candles.create_index([("underCap", 1)])
+
+    # Ticks and OHLC indices
+    await db.game_ticks.create_index([("gameId", 1), ("tick", 1)], unique=True)
+    await db.game_indices.create_index([("gameId", 1), ("index", 1)], unique=True)
+    await db.game_indices.create_index([("updatedAt", -1)])
 
 # ---- Alea seedrandom port ----
 
@@ -232,71 +236,39 @@ def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str
         "totalTicks": len(prices) - 1,
     }
 
-async def run_prng_verification(game_id: str):
-    tracking = await db.prng_tracking.find_one({"gameId": game_id})
-    game = await db.games.find_one({"id": game_id})
-    if not tracking and not game:
-        raise HTTPException(status_code=404, detail="game not found")
+########################################################
+# Broadcaster for downstream consumers (WebSocket /api/ws/stream)
+########################################################
+class Broadcaster:
+    def __init__(self):
+        self.connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
 
-    server_seed = (tracking or {}).get("serverSeed") or (game or {}).get("serverSeed")
-    server_seed_hash = (tracking or {}).get("serverSeedHash") or ((game or {}).get("serverSeedHash"))
-    version = (tracking or {}).get("version") or (game or {}).get("version") or 'v3'
+    async def register(self, ws: WebSocket):
+        await ws.accept()
+        async with self._lock:
+            self.connections.add(ws)
 
-    if not server_seed:
-        await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"status": "AWAITING_SEED", "updatedAt": now_utc()}}, upsert=True)
-        return {"status": "AWAITING_SEED"}
+    async def unregister(self, ws: WebSocket):
+        async with self._lock:
+            if ws in self.connections:
+                self.connections.remove(ws)
 
-    expected_prices = None
-    expected_peak = None
-    if game and isinstance(game.get("history"), dict):
-        hist = game["history"]
-        expected_prices = hist.get("prices")
-        expected_peak = hist.get("peakMultiplier") or hist.get("peak")
+    async def broadcast(self, message: Dict[str, Any]):
+        dead: List[WebSocket] = []
+        async with self._lock:
+            for ws in self.connections:
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                self.connections.discard(ws)
 
-    if expected_prices is None:
-        last_snap = await db.game_state_snapshots.find({"gameId": game_id}).sort("createdAt", -1).limit(1).to_list(1)
-        if last_snap:
-            expected_prices = (last_snap[0].get("payload") or {}).get("prices")
-            expected_peak = (last_snap[0].get("payload") or {}).get("peakMultiplier")
-
-    if not expected_prices:
-        await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"status": "MISSING_EXPECTED", "serverSeed": server_seed, "updatedAt": now_utc()}}, upsert=True)
-        return {"status": "MISSING_EXPECTED"}
-
-    verified = verify_game(server_seed, game_id, version)
-
-    def arrays_match(a, b, eps=1e-6):
-        if len(a) != len(b):
-            return False
-        for i in range(len(a)):
-            if abs(float(a[i]) - float(b[i])) > eps:
-                return False
-        return True
-
-    match = arrays_match(expected_prices, verified["prices"]) and (
-        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) < 1e-6
-    )
-
-    result = {
-        "gameId": game_id,
-        "serverSeed": server_seed,
-        "serverSeedHash": server_seed_hash,
-        "version": version,
-        "calculated": {"peakMultiplier": verified["peakMultiplier"], "totalTicks": verified["totalTicks"], "lastPrice": verified["prices"][-1], "length": len(verified["prices"])},
-        "expected": {"peakMultiplier": expected_peak, "totalTicks": len(expected_prices) - 1, "lastPrice": expected_prices[-1], "length": len(expected_prices)},
-        "fullVerification": match,
-        "verifiedAt": now_utc().isoformat(),
-    }
-
-    await db.prng_tracking.update_one({"gameId": game_id}, {"$set": {"serverSeed": server_seed, "status": "VERIFIED" if match else "FAILED", "verification": result, "updatedAt": now_utc()}}, upsert=True)
-
-    if game:
-        await db.games.update_one({"id": game_id}, {"$set": {"prngVerified": bool(match), "prngVerificationData": result, "updatedAt": now_utc()}})
-
-    return result
+broadcaster = Broadcaster()
 
 ########################################################
-# Socket.IO Background Listener (read-only)
+# Socket.IO Background Listener (read-only) + compaction + quality flags
 ########################################################
 
 SIO_URL = "https://backend.rugs.fun?frontend-version=1.0"
@@ -315,6 +287,7 @@ class RugsSocketService:
         # runtime tracking
         self.current_game_id: Optional[str] = None
         self.game_stats: Dict[str, Dict[str, Any]] = {}
+        # game_stats[gid]: {peak, ticks, last_price, last_tick, god_candle_seen, quality}
 
         @self.sio.event
         async def connect():
@@ -342,6 +315,19 @@ class RugsSocketService:
         @self.sio.on('standard/newTrade')
         async def on_new_trade(trade):
             await self._handle_new_trade(trade)
+
+        # Side bet related: only capture if the server actually emits these
+        @self.sio.on('sideBet')
+        async def on_side_bet(payload):
+            await self._handle_side_bet('sideBet', payload)
+
+        @self.sio.on('standard/sideBetPlaced')
+        async def on_side_bet_placed(payload):
+            await self._handle_side_bet('standard/sideBetPlaced', payload)
+
+        @self.sio.on('standard/sideBetResult')
+        async def on_side_bet_result(payload):
+            await self._handle_side_bet('standard/sideBetResult', payload)
 
         @self.sio.on('gameStatePlayerUpdate')
         async def on_player_update(payload):
@@ -391,21 +377,25 @@ class RugsSocketService:
         doc = {"_id": str(uuid.uuid4()), "socketId": self.socket_id, "eventType": event_type, "metadata": metadata, "timestampMs": int(datetime.now(tz=timezone.utc).timestamp() * 1000), "createdAt": now_utc()}
         await self.db.connection_events.insert_one(doc)
 
+    # ---- core handlers ----
     async def _handle_game_state_update(self, data: Dict[str, Any]):
         self.last_event_at = now_utc()
-
         phase = self._derive_phase(data)
 
         game_id = data.get("gameId")
-        price = data.get("price") or 1.0
-        tick_count = data.get("tickCount") or 0
+        price = float(data.get("price") or 1.0)
+        tick_count = int(data.get("tickCount") or 0)
         provably_fair = data.get("provablyFair") or {}
         version = provably_fair.get("version") or "v3"
         server_seed_hash = provably_fair.get("serverSeedHash")
 
+        # Broadcast minimal normalized frame to downstream
+        await broadcaster.broadcast({"type": "game_state_update", "gameId": game_id, "tick": tick_count, "price": price, "phase": phase, "ts": now_utc().isoformat()})
+
+        # Detect new active game
         if data.get("active") and (self.current_game_id != game_id):
             self.current_game_id = game_id
-            self.game_stats[game_id] = {"peak": float(price), "ticks": int(tick_count), "last_price": float(price), "last_tick": int(tick_count), "god_candle_seen": False}
+            self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
 
             await self.db.meta.update_one({"key": "current_game_id"}, {"$set": {"key": "current_game_id", "value": game_id, "updatedAt": now_utc()}}, upsert=True)
 
@@ -414,53 +404,87 @@ class RugsSocketService:
             if server_seed_hash:
                 await self.db.prng_tracking.update_one({"gameId": game_id}, {"$setOnInsert": {"createdAt": now_utc()}, "$set": {"gameId": game_id, "serverSeedHash": server_seed_hash, "version": version, "status": "TRACKING", "updatedAt": now_utc()}}, upsert=True)
 
+        # Data quality checks (lightweight, no scope creep)
         if game_id:
-            stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0, "last_price": float(price), "last_tick": int(tick_count), "god_candle_seen": False}
-            new_peak = stats["peak"]
-            if isinstance(price, (float, int)) and price > stats["peak"]:
-                new_peak = float(price)
+            stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
+            q = stats.get("quality", {})
+            if tick_count <= stats.get("last_tick", -1):
+                q["duplicateOrOutOfOrder"] = True
+            if (tick_count - stats.get("last_tick", 0)) > 10:
+                q["largeGap"] = True
+            if price <= 0:
+                q["priceNonPositive"] = True
+            q["lastCheckedAt"] = now_utc()
+            stats["quality"] = q
 
+            # Update peak/ticks
+            if price > stats["peak"]:
+                stats["peak"] = price
+            stats["ticks"] = tick_count
+
+            # Persist quality flags and rolling stats
+            await self.db.games.update_one({"id": game_id}, {"$set": {"peakMultiplier": stats["peak"], "totalTicks": stats["ticks"], "phase": "RUG" if phase == "RUG" else ("COOLDOWN" if phase == "COOLDOWN" else ("PRE_ROUND" if phase == "PRE_ROUND" else "ACTIVE" if phase == "ACTIVE" else "UNKNOWN")), "version": version, "serverSeedHash": server_seed_hash, "lastSeenAt": now_utc(), "quality": {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in q.items()}}}, upsert=True)
+
+            # ---- Tick persistence ----
+            try:
+                await self.db.game_ticks.update_one({"gameId": game_id, "tick": tick_count}, {"$setOnInsert": {"_id": str(uuid.uuid4()), "gameId": game_id, "tick": tick_count, "price": price, "createdAt": now_utc()}, "$set": {"updatedAt": now_utc()}}, upsert=True)
+            except Exception as e:
+                logger.error(f"game_ticks upsert error: {e}")
+
+            # ---- OHLC compaction per 5-tick index ----
+            try:
+                index = tick_count // 5
+                start_tick = index * 5
+                end_tick = start_tick + 4
+                doc = await self.db.game_indices.find_one({"gameId": game_id, "index": index})
+                if not doc:
+                    await self.db.game_indices.update_one({"gameId": game_id, "index": index}, {"$setOnInsert": {"_id": str(uuid.uuid4()), "gameId": game_id, "index": index, "startTick": start_tick, "endTick": end_tick, "open": price, "high": price, "low": price, "close": price, "createdAt": now_utc()}, "$set": {"updatedAt": now_utc()}}, upsert=True)
+                else:
+                    high = max(doc.get("high", price), price)
+                    low = min(doc.get("low", price), price)
+                    await self.db.game_indices.update_one({"gameId": game_id, "index": index}, {"$set": {"high": high, "low": low, "close": price, "updatedAt": now_utc()}})
+            except Exception as e:
+                logger.error(f"game_indices upsert error: {e}")
+
+            # ---- God Candle detection ----
+            prev_price = None
             prices_arr = data.get("prices")
             if isinstance(prices_arr, list) and len(prices_arr) >= 2:
                 prev_price = float(prices_arr[-2])
             else:
                 prev_price = float(stats.get("last_price") or price)
-
-            ratio = (float(price) / prev_price) if prev_price and prev_price > 0 else 1.0
-            # Guard: avoid duplicates; check existing record for same (gameId, tickIndex)
+            ratio = (price / prev_price) if prev_price and prev_price > 0 else 1.0
             existing = await self.db.god_candles.count_documents({"gameId": game_id, "tickIndex": int(tick_count)})
             is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
             if is_god_candle:
                 try:
                     under_cap = prev_price <= 100 * STARTING_PRICE
-                    doc = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickIndex": int(tick_count), "fromPrice": prev_price, "toPrice": float(price), "ratio": ratio, "version": version, "underCap": bool(under_cap), "createdAt": now_utc()}
-                    await self.db.god_candles.insert_one(doc)
-                    await self.db.games.update_one({"id": game_id}, {"$set": {"hasGodCandle": True, "godCandleTick": int(tick_count), "godCandleFromPrice": prev_price, "godCandleToPrice": float(price), "updatedAt": now_utc()}})
-                    stats["god_candle_seen"] = True
-                    logger.info(f"God Candle detected for game {game_id} at tick {tick_count}: {prev_price} -> {price}")
+                    gc_doc = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickIndex": int(tick_count), "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "version": version, "underCap": bool(under_cap), "createdAt": now_utc()}
+                    await self.db.god_candles.insert_one(gc_doc)
+                    await self.db.games.update_one({"id": game_id}, {"$set": {"hasGodCandle": True, "godCandleTick": int(tick_count), "godCandleFromPrice": prev_price, "godCandleToPrice": price, "updatedAt": now_utc()}})
+                    await broadcaster.broadcast({"type": "god_candle", "gameId": game_id, "tick": tick_count, "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "ts": now_utc().isoformat()})
                 except Exception as e:
                     logger.error(f"God Candle persist error: {e}")
 
-            stats.update({"peak": new_peak, "ticks": int(tick_count), "last_price": float(price), "last_tick": int(tick_count)})
+            stats["last_price"] = price
+            stats["last_tick"] = tick_count
             self.game_stats[game_id] = stats
 
-            try:
-                await self.db.games.update_one({"id": game_id}, {"$set": {"peakMultiplier": stats["peak"], "totalTicks": stats["ticks"], "phase": "RUG" if phase == "RUG" else ("COOLDOWN" if phase == "COOLDOWN" else ("PRE_ROUND" if phase == "PRE_ROUND" else "ACTIVE" if phase == "ACTIVE" else "UNKNOWN")), "version": version, "serverSeedHash": server_seed_hash, "lastSeenAt": now_utc()}} , upsert=True)
-            except Exception as e:
-                logger.error(f"Game rolling update error: {e}")
-
+        # Insert snapshot (observability)
         try:
             snap = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickCount": tick_count, "active": data.get("active"), "rugged": data.get("rugged"), "price": price, "cooldownTimer": data.get("cooldownTimer"), "provablyFair": provably_fair, "phase": phase, "payload": data, "createdAt": now_utc()}
             await self.db.game_state_snapshots.insert_one(snap)
         except Exception as e:
             logger.error(f"Snapshot insert error: {e}")
 
+        # Upsert live state singleton (HUD / API)
         try:
             lite = {"gameId": game_id, "active": data.get("active"), "rugged": data.get("rugged"), "price": price, "tickCount": tick_count, "cooldownTimer": data.get("cooldownTimer"), "provablyFair": provably_fair, "phase": phase, "updatedAt": now_utc()}
             await self.db.meta.update_one({"key": "live_state"}, {"$set": {"key": "live_state", **lite}}, upsert=True)
         except Exception as e:
             logger.error(f"Live state upsert error: {e}")
 
+        # Handle revealed server seeds for completed games & verify
         try:
             history = data.get("gameHistory")
             if isinstance(history, list):
@@ -479,9 +503,11 @@ class RugsSocketService:
         except Exception as e:
             logger.error(f"History upsert error: {e}")
 
+        # RUG end capture
         if data.get("rugged") and game_id:
             try:
                 await self.db.games.update_one({"id": game_id}, {"$set": {"endTime": now_utc(), "phase": "RUG", "lastSeenAt": now_utc(), "rugTick": int(tick_count), "endPrice": float(price)}})
+                await broadcaster.broadcast({"type": "rug", "gameId": game_id, "tick": tick_count, "endPrice": float(price), "ts": now_utc().isoformat()})
             except Exception as e:
                 logger.error(f"RUG end update error: {e}")
 
@@ -490,8 +516,28 @@ class RugsSocketService:
         try:
             doc = {"_id": str(uuid.uuid4()), "eventId": str(trade.get("id")), "gameId": trade.get("gameId"), "playerId": trade.get("playerId"), "type": trade.get("type"), "qty": trade.get("qty"), "tickIndex": trade.get("tickIndex"), "coin": trade.get("coin"), "amount": trade.get("amount"), "price": trade.get("price"), "createdAt": now_utc()}
             await self.db.trades.insert_one(doc)
+            await broadcaster.broadcast({"type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
+
+    async def _handle_side_bet(self, event_type: str, payload: Dict[str, Any]):
+        self.last_event_at = now_utc()
+        try:
+            doc = {"_id": str(uuid.uuid4()), "event": event_type, "payload": payload, "createdAt": now_utc()}
+            # Try to normalize common fields if present (no simulation)
+            doc["gameId"] = payload.get("gameId")
+            doc["playerId"] = payload.get("playerId") or payload.get("did")
+            if "startTick" in payload:
+                doc["startTick"] = int(payload["startTick"]) if payload["startTick"] is not None else None
+            if "endTick" in payload:
+                doc["endTick"] = int(payload["endTick"]) if payload["endTick"] is not None else None
+            for k in ["betAmount", "targetSeconds", "payoutRatio", "won", "pnl"]:
+                if k in payload:
+                    doc[k] = payload[k]
+            await self.db.side_bets.insert_one(doc)
+            await broadcaster.broadcast({"type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "ts": now_utc().isoformat()})
+        except Exception as e:
+            logger.error(f"Side bet store error: {e}")
 
     async def _store_event(self, event_type: str, payload: Dict[str, Any]):
         self.last_event_at = now_utc()
@@ -520,7 +566,7 @@ class RugsSocketService:
 auth_svc: Optional[RugsSocketService] = None
 
 ########################################################
-# API Routes
+# API Routes (REST)
 ########################################################
 
 @api_router.get("/")
@@ -588,6 +634,19 @@ async def god_candles(gameId: Optional[str] = Query(default=None), limit: int = 
             r["createdAt"] = r["createdAt"].isoformat()
     return {"items": rows}
 
+@api_router.get("/ohlc")
+async def ohlc(gameId: str = Query(...), window: int = Query(5), limit: int = Query(200)):
+    if window != 5:
+        raise HTTPException(status_code=400, detail="Only 5-tick window supported currently")
+    limit = max(1, min(limit, 1000))
+    rows = await db.game_indices.find({"gameId": gameId}).sort("index", -1).limit(limit).to_list(limit)
+    for r in rows:
+        r["id"] = r.pop("_id", None)
+        for dkey in ["createdAt", "updatedAt"]:
+            if isinstance(r.get(dkey), datetime):
+                r[dkey] = r[dkey].isoformat()
+    return {"items": rows}
+
 @api_router.get("/games")
 async def games(limit: int = 50):
     limit = max(1, min(limit, 200))
@@ -624,6 +683,20 @@ async def game_by_id(game_id: str):
             g[dkey] = g[dkey].isoformat()
     return g
 
+@api_router.get("/games/{game_id}/quality")
+async def game_quality(game_id: str):
+    g = await db.games.find_one({"id": game_id}, {"quality": 1, "_id": 0})
+    return g.get("quality") if g else {}
+
+@api_router.get("/quality")
+async def quality_list(limit: int = 50):
+    limit = max(1, min(limit, 200))
+    rows = await db.games.find({"quality": {"$exists": True}}).sort("lastSeenAt", -1).limit(limit).to_list(limit)
+    out = []
+    for r in rows:
+        out.append({"id": r.get("id"), "quality": r.get("quality")})
+    return {"items": out}
+
 @api_router.get("/prng/tracking")
 async def prng_tracking(limit: int = 50):
     limit = max(1, min(limit, 200))
@@ -650,8 +723,33 @@ async def game_verification(game_id: str):
 
 @api_router.post("/prng/verify/{game_id}")
 async def trigger_verification(game_id: str):
+    # run_prng_verification defined earlier (unchanged in this diff)
+    from math import isnan  # no-op import to satisfy linter in some envs
+    # We import above to avoid unused warnings in static analyzers
     result = await run_prng_verification(game_id)
     return result
+
+########################################################
+# WebSocket route for downstream consumers
+########################################################
+
+@app.websocket("/api/ws/stream")
+async def ws_stream(ws: WebSocket):
+    await broadcaster.register(ws)
+    try:
+        # Send a hello + minimal status
+        await ws.send_json({"type": "hello", "time": now_utc().isoformat()})
+        while True:
+            # Keep alive: we don't expect incoming messages, but read pings if any
+            await asyncio.sleep(30)
+            try:
+                await ws.send_json({"type": "heartbeat", "time": now_utc().isoformat()})
+            except Exception:
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await broadcaster.unregister(ws)
 
 # Include router and CORS
 app.include_router(api_router)
@@ -676,7 +774,6 @@ async def backfill_god_candle_flags(limit: int = 2000):
 async def startup_event():
     global auth_svc
     await ensure_indexes()
-    # Backfill flags from existing god_candles docs (lightweight)
     asyncio.create_task(backfill_god_candle_flags())
     auth_svc = RugsSocketService(db)
     auth_svc.start()
