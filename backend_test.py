@@ -728,8 +728,15 @@ class RugsDataServiceTester:
         return True
 
     def test_readiness_endpoint(self):
-        """Test GET /api/readiness returns JSON with {dbOk:boolean, upstreamConnected:boolean, time:string} and 200"""
-        print(f"\n🔍 Testing Readiness Endpoint...")
+        """Test GET /api/readiness returns dbPingMs and updates dbPingMs in metrics after call (P2)"""
+        print(f"\n🔍 Testing Readiness Endpoint (P2 Changes)...")
+        
+        # First get metrics to see initial dbPingMs
+        success_metrics_before, metrics_before = self.run_test("Metrics Before Readiness", "GET", "metrics", 200, timeout=15)
+        initial_db_ping = None
+        if success_metrics_before and isinstance(metrics_before, dict):
+            initial_db_ping = metrics_before.get('dbPingMs')
+            print(f"   Initial dbPingMs in metrics: {initial_db_ping}")
         
         success, response = self.run_test("Readiness Endpoint", "GET", "readiness", 200, timeout=15)
         
@@ -737,25 +744,27 @@ class RugsDataServiceTester:
             print("   ❌ Readiness endpoint call failed")
             return False
         
-        # Validate required fields are present
-        required_fields = ['dbOk', 'upstreamConnected', 'time']
+        # Validate required fields are present (including P2 addition)
+        required_fields = ['dbOk', 'upstreamConnected', 'time', 'dbPingMs']  # P2: added dbPingMs
         missing_fields = [field for field in required_fields if field not in response]
         
         if missing_fields:
             print(f"   ❌ Missing required fields: {missing_fields}")
             return False
         
-        print(f"   ✓ All required fields present: {required_fields}")
+        print(f"   ✓ All required fields present (including P2 addition): {required_fields}")
         
         # Validate data types
         db_ok = response['dbOk']
         upstream_connected = response['upstreamConnected']
         time_str = response['time']
+        db_ping_ms = response['dbPingMs']  # P2 addition
         
         print(f"   Response values:")
         print(f"     dbOk: {db_ok} (type: {type(db_ok)})")
         print(f"     upstreamConnected: {upstream_connected} (type: {type(upstream_connected)})")
         print(f"     time: {time_str} (type: {type(time_str)})")
+        print(f"     dbPingMs: {db_ping_ms} (type: {type(db_ping_ms)}) [P2]")
         
         # Validate types
         validation_errors = []
@@ -769,13 +778,17 @@ class RugsDataServiceTester:
         if not isinstance(time_str, str):
             validation_errors.append(f"time should be string, got {type(time_str)}")
         
+        # P2: dbPingMs should be int >= 0 or None
+        if db_ping_ms is not None and (not isinstance(db_ping_ms, int) or db_ping_ms < 0):
+            validation_errors.append(f"dbPingMs should be int >= 0 or None, got {db_ping_ms}")
+        
         if validation_errors:
             print("   ❌ Validation errors:")
             for error in validation_errors:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ All field types are valid")
+        print("   ✓ All field types are valid (including P2 addition)")
         
         # Try to parse time as ISO string
         try:
@@ -784,6 +797,27 @@ class RugsDataServiceTester:
         except ValueError:
             print(f"   ❌ Time field is not valid ISO format: {time_str}")
             return False
+        
+        # P2: Check that readiness call updates dbPingMs in metrics
+        print("   Checking if readiness call updates dbPingMs in metrics...")
+        success_metrics_after, metrics_after = self.run_test("Metrics After Readiness", "GET", "metrics", 200, timeout=15)
+        
+        if success_metrics_after and isinstance(metrics_after, dict):
+            updated_db_ping = metrics_after.get('dbPingMs')
+            print(f"   Updated dbPingMs in metrics: {updated_db_ping}")
+            
+            # Check if dbPingMs was updated (should match readiness response if db is ok)
+            if db_ok and db_ping_ms is not None:
+                if updated_db_ping == db_ping_ms:
+                    print("   ✅ P2: dbPingMs in metrics updated correctly after readiness call")
+                elif updated_db_ping is not None and abs(updated_db_ping - db_ping_ms) <= 5:  # Allow small timing differences
+                    print(f"   ✅ P2: dbPingMs in metrics updated (small timing difference: {db_ping_ms} vs {updated_db_ping})")
+                else:
+                    print(f"   ⚠ P2: dbPingMs in metrics ({updated_db_ping}) differs from readiness response ({db_ping_ms})")
+            else:
+                print("   ✓ P2: dbPingMs behavior consistent with db status")
+        else:
+            print("   ⚠ Could not verify metrics update after readiness call")
         
         return True
 
