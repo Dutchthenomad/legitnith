@@ -123,15 +123,18 @@
 ## frontend:
   - task: "Schema validation + /api/schemas + metrics.schemaValidation"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Integrated fastjsonschema-backed SchemaRegistry loading docs/ws-schema/*.json; validating inbound events in warn mode and tagging records; added GET /api/schemas; extended GET /api/metrics with schemaValidation counters; WS broadcasts now include validation summary."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - All schema validation features working correctly: 1) GET /api/schemas returns 200 with JSON {items: [...]} containing 7 schemas including all required ones (gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate). Each schema has correct structure with key, id, title, required (array), properties (object), and outboundType (may be null). 2) GET /api/metrics includes schemaValidation object with total (786->811) and perEvent counters showing validation activity for gameStateUpdate (ok:377->397, fail:303), gameStatePlayerUpdate (ok:1, fail:0), and newTrade (ok:105->110, fail:0). 3) WebSocket /api/ws/stream messages include validation summaries with validation.ok (boolean) and validation.schema (string) fields - captured 163 validated messages out of 165 total including game_state_update and trade events. Schema registry properly loaded, validation counters incrementing, and all field types validated correctly."
 
   - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
     implemented: false
