@@ -623,7 +623,7 @@ class RugsSocketService:
                     gc_doc = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickIndex": int(tick_count), "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "version": version, "underCap": bool(under_cap), "createdAt": now_utc()}
                     await self.db.god_candles.insert_one(gc_doc)
                     await self.db.games.update_one({"id": game_id}, {"$set": {"hasGodCandle": True, "godCandleTick": int(tick_count), "godCandleFromPrice": prev_price, "godCandleToPrice": price, "updatedAt": now_utc()}})
-                    await broadcaster.broadcast({"type": "god_candle", "gameId": game_id, "tick": tick_count, "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "ts": now_utc().isoformat()})
+                    await broadcaster.broadcast({"schema": "v1", "type": "god_candle", "gameId": game_id, "tick": tick_count, "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "ts": now_utc().isoformat()})
                 except Exception as e:
                     logger.error(f"God Candle persist error: {e}")
                     metrics.incr_error("god_candle_persist")
