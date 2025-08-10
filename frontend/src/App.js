@@ -444,10 +444,13 @@ function App() {
   }, [buffer]);
 
   // map outbound type to inbound schema key
-  const outboundToSchemaKey = useMemo(() => {
+  const outboundToSchemaKeys = useMemo(() => {
     const map = {};
     (schemaItems || []).forEach((it) => {
-      if (it.outboundType) map[it.outboundType] = it.key;
+      if (it.outboundType) {
+        if (!map[it.outboundType]) map[it.outboundType] = new Set();
+        map[it.outboundType].add(it.key);
+      }
     });
     return map;
   }, [schemaItems]);
