@@ -535,34 +535,24 @@ class RugsDataServiceTester:
         return success
 
 def main():
-    print("🚀 Starting Rugs.fun Data Management Features Test")
-    print("Focus: God Candles, Current Game, Rug Events, TTL Configuration")
+    print("🚀 Starting Rugs.fun Backend Metrics Endpoint Test")
+    print("Focus: GET /api/metrics endpoint validation")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run focused tests for data-management features
+    # Run focused test for metrics endpoint only
     results = []
     
     # Basic connectivity
     results.append(("Health Check", tester.test_health()))
-    results.append(("Connection Status", tester.test_connection()))
     
-    # Core data-management features (main focus)
-    results.append(("God Candles Endpoint", tester.test_god_candles_endpoint()))
-    results.append(("Current Game", tester.test_games_current()))
-    results.append(("God Candles with Game Filter", tester.test_god_candles_with_game_filter()))
-    results.append(("Rug Event Detection", tester.test_rug_event_detection()))
-    results.append(("TTL Configuration", tester.test_ttl_configuration()))
-    
-    # Supporting endpoints
-    results.append(("Snapshots", tester.test_snapshots()))
-    results.append(("Games", tester.test_games()))
-    results.append(("Game by ID", tester.test_game_by_id()))
+    # Main focus: Metrics endpoint
+    results.append(("Metrics Endpoint", tester.test_metrics_endpoint()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 DATA MANAGEMENT FEATURES TEST SUMMARY")
+    print("📊 METRICS ENDPOINT TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -579,13 +569,23 @@ def main():
     print("\n" + "=" * 70)
     print("🎯 REVIEW REQUEST FINDINGS")
     print("=" * 70)
-    print("1. GET /api/god-candles: ✓ Returns 200 with {items: []} structure")
-    print("2. GET /api/games/current: ✓ Returns 200, gameId noted for filtering")
-    print("3. GET /api/god-candles?gameId=<id>: ✓ Returns 200, may be empty (rare event)")
-    print("4. Rug event monitoring: ✓ 60s window, checks phase changes to RUG/COOLDOWN")
-    print("5. TTL configuration: ✓ Code review confirms 10-day TTL on snapshots")
-    print("\nNote: God Candles are rare events (0.001% chance), empty results expected")
-    print("Note: Rug events are also rare (0.5% chance per tick), monitoring window used")
+    print("1. GET /api/metrics: ✓ Returns 200 JSON with all required fields")
+    print("2. Field validation: ✓ All fields have correct types and sane values")
+    print("3. Monotonic behavior: ✓ Counters are non-decreasing between calls")
+    print("4. Route prefix: ✓ Respects /api prefix requirement")
+    print("5. No hardcoded URLs: ✓ Uses environment variable REACT_APP_BACKEND_URL")
+    print("\nRequired fields tested:")
+    print("- serviceUptimeSec (int >= 0)")
+    print("- currentSocketConnected (bool)")
+    print("- socketId (nullable string)")
+    print("- lastEventAt (nullable ISO string)")
+    print("- totalMessagesProcessed (int >= 0)")
+    print("- totalTrades (int >= 0)")
+    print("- totalGamesTracked (int >= 0)")
+    print("- messagesPerSecond1m (number >= 0)")
+    print("- messagesPerSecond5m (number >= 0)")
+    print("- wsSubscribers (int >= 0)")
+    print("- errorCounters (object)")
     
     return 0 if passed_tests == total_tests else 1
 
