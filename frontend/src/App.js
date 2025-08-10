@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Separator } from "./components/ui/separator";
+import { FixedSizeList as List } from "react-window";
+
 import { Cpu, RefreshCcw } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
