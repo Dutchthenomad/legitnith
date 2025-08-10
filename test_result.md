@@ -107,15 +107,18 @@
 ## backend:
   - task: "/api/metrics endpoint"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented in-memory metrics counters and GET /api/metrics with serviceUptimeSec, socket connection, msg rates, totals, ws subscribers, and error counters."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Endpoint returns 200 JSON with all required fields: serviceUptimeSec (106), currentSocketConnected (true), socketId (TlZYBGh9v_U-E3teBGom), lastEventAt (ISO string), totalMessagesProcessed (745->767), totalTrades (177->179), totalGamesTracked (2), messagesPerSecond1m (7.833), messagesPerSecond5m (2.0), wsSubscribers (0), errorCounters ({}). All field types valid, counters monotonic non-decreasing, respects /api prefix, uses environment variable URL."
 
 ## frontend:
   - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
