@@ -570,7 +570,7 @@ class Broadcaster:
                         self.connections.discard(ws)
             # metrics hook for slow/broken clients
             try:
-                metrics.incr_error("ws_slow_client_drop")
+                metrics.incr_ws_drop(len(dead))
             except Exception:
                 pass
 
