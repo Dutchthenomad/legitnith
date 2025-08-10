@@ -970,7 +970,6 @@ async def health():
 
 @api_router.get("/metrics")
 async def metrics_endpoint():
-    global auth_svc
     mps_1m = metrics.msgs_per_sec_window(60)
     mps_5m = metrics.msgs_per_sec_window(300)
     connected_clients = len(broadcaster.connections)
