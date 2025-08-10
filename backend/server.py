@@ -512,16 +512,34 @@ class Broadcaster:
             if ws in self.connections:
                 self.connections.remove(ws)
 
-    async def broadcast(self, message: Dict[str, Any]):
-        dead: List[WebSocket] = []
+    async def broadcast(self, message: Dict[str, Any], send_timeout: float = 1.0):
+        # Snapshot connections under lock
         async with self._lock:
-            for ws in self.connections:
-                try:
-                    await ws.send_json(message)
-                except Exception:
-                    dead.append(ws)
-            for ws in dead:
-                self.connections.discard(ws)
+            targets = list(self.connections)
+        if not targets:
+            return
+        dead: List[WebSocket] = []
+
+        async def send_one(ws: WebSocket):
+            try:
+                await asyncio.wait_for(ws.send_json(message), timeout=send_timeout)
+            except Exception:
+                dead.append(ws)
+
+        # Send concurrently outside the lock
+        await asyncio.gather(*(send_one(ws) for ws in targets), return_exceptions=True)
+
+        # Remove dead connections
+        if dead:
+            async with self._lock:
+                for ws in dead:
+                    if ws in self.connections:
+                        self.connections.discard(ws)
+            # metrics hook for slow/broken clients
+            try:
+                metrics.incr_error("ws_slow_client_drop")
+            except Exception:
+                pass
 
 broadcaster = Broadcaster()
 
