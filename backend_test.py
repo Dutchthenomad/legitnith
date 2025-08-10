@@ -852,24 +852,26 @@ class RugsDataServiceTester:
         return success
 
 def main():
-    print("🚀 Starting Rugs.fun Backend Metrics Endpoint Test")
-    print("Focus: GET /api/metrics endpoint validation")
+    print("🚀 Starting Rugs.fun Backend Schema Features Test")
+    print("Focus: Schema validation, /api/schemas, and WebSocket validation")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run focused test for metrics endpoint only
+    # Run focused tests for schema features
     results = []
     
     # Basic connectivity
     results.append(("Health Check", tester.test_health()))
     
-    # Main focus: Metrics endpoint
-    results.append(("Metrics Endpoint", tester.test_metrics_endpoint()))
+    # Main focus: Schema features
+    results.append(("Schemas Endpoint", tester.test_schemas_endpoint()))
+    results.append(("Metrics Schema Validation", tester.test_metrics_schema_validation()))
+    results.append(("WebSocket Validation Summary", tester.test_websocket_validation_summary()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 METRICS ENDPOINT TEST SUMMARY")
+    print("📊 SCHEMA FEATURES TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -886,23 +888,16 @@ def main():
     print("\n" + "=" * 70)
     print("🎯 REVIEW REQUEST FINDINGS")
     print("=" * 70)
-    print("1. GET /api/metrics: ✓ Returns 200 JSON with all required fields")
-    print("2. Field validation: ✓ All fields have correct types and sane values")
-    print("3. Monotonic behavior: ✓ Counters are non-decreasing between calls")
-    print("4. Route prefix: ✓ Respects /api prefix requirement")
-    print("5. No hardcoded URLs: ✓ Uses environment variable REACT_APP_BACKEND_URL")
-    print("\nRequired fields tested:")
-    print("- serviceUptimeSec (int >= 0)")
-    print("- currentSocketConnected (bool)")
-    print("- socketId (nullable string)")
-    print("- lastEventAt (nullable ISO string)")
-    print("- totalMessagesProcessed (int >= 0)")
-    print("- totalTrades (int >= 0)")
-    print("- totalGamesTracked (int >= 0)")
-    print("- messagesPerSecond1m (number >= 0)")
-    print("- messagesPerSecond5m (number >= 0)")
-    print("- wsSubscribers (int >= 0)")
-    print("- errorCounters (object)")
+    print("1. GET /api/schemas: Returns 200 with JSON {items: [...]}")
+    print("2. Schema items: Each has keys: key, id, title, required (array), properties (object), outboundType (may be null)")
+    print("3. Required schemas: gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate")
+    print("4. GET /api/metrics: Includes schemaValidation object with total (number) and perEvent (object)")
+    print("5. WebSocket /api/ws/stream: Messages include validation.ok (boolean) and validation.schema (string or null)")
+    print("\nSchema validation features tested:")
+    print("- Schema registry loading and compilation")
+    print("- Schema validation counters in metrics")
+    print("- Validation summaries in WebSocket broadcasts")
+    print("- Proper field types and structure validation")
     
     return 0 if passed_tests == total_tests else 1
 
