@@ -672,7 +672,7 @@ class RugsSocketService:
         if data.get("rugged") and game_id:
             try:
                 await self.db.games.update_one({"id": game_id}, {"$set": {"endTime": now_utc(), "phase": "RUG", "lastSeenAt": now_utc(), "rugTick": int(tick_count), "endPrice": float(price)}})
-                await broadcaster.broadcast({"type": "rug", "gameId": game_id, "tick": tick_count, "endPrice": float(price), "ts": now_utc().isoformat()})
+                await broadcaster.broadcast({"schema": "v1", "type": "rug", "gameId": game_id, "tick": tick_count, "endPrice": float(price), "ts": now_utc().isoformat()})
             except Exception as e:
                 logger.error(f"RUG end update error: {e}")
                 metrics.incr_error("rug_update")
