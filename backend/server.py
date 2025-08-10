@@ -1190,12 +1190,14 @@ async def quality_list(limit: int = 50):
     try:
         if auth_svc and isinstance(auth_svc.game_stats, dict):
             now_ts = time.time()
-            # Remove games not updated in > 24h or keep only most recent 200 by last_tick
+            # Remove games not updated in > 24h or keep only most recent 200 by last_seen_ts
+            now_sec = time.time()
+            auth_svc.game_stats = {k: v for k, v in auth_svc.game_stats.items() if (now_sec - v.get("last_seen_ts", now_sec)) <= 86400}
             if len(auth_svc.game_stats) > 250:
-                # sort by last_tick desc
-                keep = sorted(auth_svc.game_stats.items(), key=lambda kv: (kv[1].get("last_tick", 0)), reverse=True)[:200]
+                # sort by last_seen_ts desc
+                keep = sorted(auth_svc.game_stats.items(), key=lambda kv: (kv[1].get("last_seen_ts", 0)), reverse=True)[:200]
                 auth_svc.game_stats = dict(keep)
-            # time-based prune using no explicit timestamps; rely on size cap above
+
     except Exception as e:
         logger.warning(f"game_stats prune warn: {e}")
 
