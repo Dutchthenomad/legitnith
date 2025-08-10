@@ -457,6 +457,7 @@ class RugsSocketService:
         # Side bet related: only capture if the server actually emits these
         @self.sio.on('sideBet')
         async def on_side_bet(payload):
+            metrics.incr_message()
             await self._handle_side_bet('sideBet', payload)
 
         @self.sio.on('standard/sideBetPlaced')
