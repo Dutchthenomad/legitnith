@@ -223,7 +223,7 @@ def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str
     prices = [1.0]
 
     for tick in range(5000):
-        if prng() &lt; RUG_PROB:
+        if prng() < RUG_PROB:
             rugged = True
             break
         price = drift_price(price, prng, version)
