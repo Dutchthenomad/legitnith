@@ -228,6 +228,7 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 async def ensure_indexes():
+    """Ensure all collection indexes exist for performance and data integrity."""
     # Observability snapshots: 10d TTL
     await db.game_state_snapshots.create_index([("gameId", 1), ("tickCount", -1)])
     await db.game_state_snapshots.create_index([("createdAt", -1)])
@@ -257,6 +258,28 @@ async def ensure_indexes():
     await db.games.create_index([("endPrice", -1)])
     await db.games.create_index([("peakMultiplier", -1)])
     await db.games.create_index([("totalTicks", -1)])
+
+    # Side bets
+    await db.side_bets.create_index([("gameId", 1), ("createdAt", -1)])
+    if "startTick" in (await db.side_bets.find_one() or {}):
+        await db.side_bets.create_index([("gameId", 1), ("startTick", 1)])
+
+    # Trades: ensure idempotency by unique eventId when available
+    try:
+        await db.trades.create_index([("eventId", 1)], unique=True, name="uniq_eventId")
+    except Exception:
+        # fallback non-unique index to avoid full scans
+        await db.trades.create_index([("eventId", 1)], name="idx_eventId")
+
+    # Meta as a KV store
+    try:
+        await db.meta.create_index([("key", 1)], unique=True, name="uniq_key")
+    except Exception:
+        await db.meta.create_index([("key", 1)], name="idx_key")
+
+    # Status checks
+    await db.status_checks.create_index([("timestamp", -1)])
+
 
     # Events (optional TTL 30d)
     await db.events.create_index([("type", 1), ("createdAt", -1)])
@@ -512,16 +535,34 @@ class Broadcaster:
             if ws in self.connections:
                 self.connections.remove(ws)
 
-    async def broadcast(self, message: Dict[str, Any]):
-        dead: List[WebSocket] = []
+    async def broadcast(self, message: Dict[str, Any], send_timeout: float = 1.0):
+        # Snapshot connections under lock
         async with self._lock:
-            for ws in self.connections:
-                try:
-                    await ws.send_json(message)
-                except Exception:
-                    dead.append(ws)
-            for ws in dead:
-                self.connections.discard(ws)
+            targets = list(self.connections)
+        if not targets:
+            return
+        dead: List[WebSocket] = []
+
+        async def send_one(ws: WebSocket):
+            try:
+                await asyncio.wait_for(ws.send_json(message), timeout=send_timeout)
+            except Exception:
+                dead.append(ws)
+
+        # Send concurrently outside the lock
+        await asyncio.gather(*(send_one(ws) for ws in targets), return_exceptions=True)
+
+        # Remove dead connections
+        if dead:
+            async with self._lock:
+                for ws in dead:
+                    if ws in self.connections:
+                        self.connections.discard(ws)
+            # metrics hook for slow/broken clients
+            try:
+                metrics.incr_error("ws_slow_client_drop")
+            except Exception:
+                pass
 
 broadcaster = Broadcaster()
 
@@ -578,7 +619,7 @@ metrics = Metrics()
 # Socket.IO Background Listener (read-only) + compaction + quality flags
 ########################################################
 
-SIO_URL = "https://backend.rugs.fun?frontend-version=1.0"
+SIO_URL = os.environ.get("RUGS_UPSTREAM_URL", "https://backend.rugs.fun?frontend-version=1.0")
 
 class RugsSocketService:
     def __init__(self, db):
@@ -653,9 +694,14 @@ class RugsSocketService:
             await self._handle_side_bet('standard/sideBetResult', payload)
 
         @self.sio.on('gameStatePlayerUpdate')
-        async def on_player_update(payload):
+        async def on_game_state_player_update(payload):
             metrics.incr_message()
             await self._store_event("gameStatePlayerUpdate", payload)
+
+        @self.sio.on('playerUpdate')
+        async def on_player_update(payload):
+            metrics.incr_message()
+            await self._store_event("playerUpdate", payload)
 
         @self.sio.on('rugPool')
         async def on_rug_pool(payload):
@@ -875,7 +921,15 @@ class RugsSocketService:
             doc = {"_id": str(uuid.uuid4()), "eventId": str(trade.get("id")), "gameId": trade.get("gameId"), "playerId": trade.get("playerId"), "type": trade.get("type"), "qty": trade.get("qty"), "tickIndex": trade.get("tickIndex"), "coin": trade.get("coin"), "amount": trade.get("amount"), "price": trade.get("price"), "createdAt": now_utc()}
             if v_key:
                 doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
-            await self.db.trades.insert_one(doc)
+            # Idempotent insert on eventId when present
+            if doc.get("eventId"):
+                await self.db.trades.update_one(
+                    {"eventId": doc["eventId"]},
+                    {"$setOnInsert": doc},
+                    upsert=True,
+                )
+            else:
+                await self.db.trades.insert_one(doc)
             await broadcaster.broadcast({"schema": "v1", "type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
@@ -1077,6 +1131,18 @@ async def game_by_id(game_id: str):
         if isinstance(g.get(dkey), datetime):
             g[dkey] = g[dkey].isoformat()
     return g
+
+
+@api_router.get("/readiness")
+async def readiness():
+    db_ok = False
+    try:
+        await db.command({"ping": 1})
+        db_ok = True
+    except Exception as e:
+        logger.warning(f"Mongo ping failed: {e}")
+    upstream_ok = bool(auth_svc and auth_svc.connected)
+    return {"dbOk": db_ok, "upstreamConnected": upstream_ok, "time": now_utc().isoformat()}
 
 @api_router.get("/games/{game_id}/quality")
 async def game_quality(game_id: str):

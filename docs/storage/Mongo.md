@@ -8,7 +8,7 @@ Collections & Indexes
   - Indexes: (gameId, tickCount), createdAt (TTL 10d)
 - trades
   - Fields: _id (uuid), eventId, gameId, playerId, type, qty, tickIndex, coin, amount, price, validation?, createdAt
-  - Indexes: (gameId, tickIndex)
+  - Indexes: (gameId, tickIndex), eventId (unique for idempotency)
 - games
   - Fields: id, phase, version, serverSeedHash, lastSeenAt, startTime, endTime, rugTick, endPrice, peakMultiplier, totalTicks, hasGodCandle, prngVerified, prngVerificationData, quality, history, createdAt, updatedAt
   - Indexes: id (unique), phase, hasGodCandle, prngVerified, startTime, endTime, rugTick, endPrice, peakMultiplier, totalTicks
@@ -28,6 +28,16 @@ Collections & Indexes
   - Fields: _id (uuid), gameId, tick, price, createdAt, updatedAt
   - Indexes: (gameId, tick) unique
 - game_indices (5-tick OHLC)
+- side_bets
+  - Fields: _id (uuid), event, gameId, playerId, startTick?, endTick?, betAmount?, targetSeconds?, payoutRatio?, won?, pnl?, xPayout?, payload, validation?, createdAt
+  - Indexes: (gameId, createdAt desc), optional (gameId, startTick)
+- meta (KV store)
+  - Fields: key, value?, plus dynamic fields depending on key (e.g., live_state)
+  - Indexes: key (unique)
+- status_checks
+  - Fields: id (uuid), client_name, timestamp
+  - Indexes: timestamp desc
+
   - Fields: _id (uuid), gameId, index, startTick, endTick, open, high, low, close, createdAt, updatedAt
   - Indexes: (gameId, index) unique, updatedAt
 
