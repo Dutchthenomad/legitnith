@@ -460,7 +460,19 @@ function App() {
     if (relevant.length === 0) return true;
     try {
       return relevant.every((r) => {
-        const val = m[r.field];
+        // Support dot-paths if needed (e.g., payload.nested)
+        const getVal = (obj, path) => {
+          try {
+            if (!path) return undefined;
+            if (path.includes('.')) {
+              return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
+            }
+            return obj[path];
+          } catch (_) {
+            return undefined;
+          }
+        };
+        const val = getVal(m, r.field);
         switch (r.op) {
           case "eq":
             return String(val) === String(r.val);
