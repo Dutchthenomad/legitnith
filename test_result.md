@@ -240,6 +240,18 @@
         agent: "testing"
         comment: "✅ PASSED - Schema-driven filter builder fully functional: 1) Dropdowns have excellent contrast (dark bg: rgb(39,41,53), light text: rgb(248,248,252), visible borders) and are fully interactable. 2) Successfully added rule with event=gameStateUpdate, field=gameId, op=starts, value='' as requested. 3) Rule removal with trash icon works perfectly. 4) Preset save/apply functionality working - saved preset and applied P1 successfully restored all dropdown values (gameStateUpdate, gameId, starts). 5) All 3 dropdowns (event, field, operator) populate correctly from /api/schemas endpoint and show proper type-aware operators. Filter builder is production-ready with good UX."
 
+  - task: "UI validation fixes: PRNG button overflow, SVG alignment, filter rules, presets, side_bet messages"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - All 5 UI validation fixes confirmed working: 1) PRNG card Verify button properly contained within hud-card without overflow, positioned correctly next to Ping button. 2) Diagnostics tab SVG charts (Duration Histogram and Peak Multiplier Sparkline) are properly aligned horizontally and contained within their respective hud-card containers without overflow. 3) Filter toolbar Add rule functionality creates valid default rule with gameStateUpdate event mapped to available schemas. 4) Preset save/apply successfully restores filters, regex, and rules (verified in previous tests). 5) Side_bet filter toggle works correctly, regex filter can be set for normalized fields like betAmount, WebSocket stream accumulates messages properly. Visual inspection through screenshots confirms all UI elements are properly positioned and functional."
+
 ## metadata:
   created_by: "main_agent"
   version: "1.0"
