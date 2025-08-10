@@ -977,7 +977,24 @@ class RugsSocketService:
             if v_key:
                 doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
             await self.db.side_bets.insert_one(doc)
-            await broadcaster.broadcast({"schema": "v1", "type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({
+                "schema": "v1",
+                "type": "side_bet",
+                "event": event_type,
+                "gameId": doc.get("gameId"),
+                "playerId": doc.get("playerId"),
+                # Include commonly used normalized fields for filtering/visibility
+                "startTick": doc.get("startTick"),
+                "endTick": doc.get("endTick"),
+                "betAmount": doc.get("betAmount"),
+                "targetSeconds": doc.get("targetSeconds"),
+                "payoutRatio": doc.get("payoutRatio"),
+                "won": doc.get("won"),
+                "pnl": doc.get("pnl"),
+                "xPayout": doc.get("xPayout"),
+                "validation": {"ok": bool(v_ok), "schema": v_key},
+                "ts": now_utc().isoformat()
+            })
         except Exception as e:
             logger.error(f"Side bet store error: {e}")
             metrics.incr_error("side_bet_insert")
