@@ -119,6 +119,20 @@
       - working: true
         agent: "testing"
         comment: "✅ PASSED - Endpoint returns 200 JSON with all required fields: serviceUptimeSec (106), currentSocketConnected (true), socketId (TlZYBGh9v_U-E3teBGom), lastEventAt (ISO string), totalMessagesProcessed (745->767), totalTrades (177->179), totalGamesTracked (2), messagesPerSecond1m (7.833), messagesPerSecond5m (2.0), wsSubscribers (0), errorCounters ({}). All field types valid, counters monotonic non-decreasing, respects /api prefix, uses environment variable URL."
+  - task: "Schema validation + /api/schemas + metrics.schemaValidation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Integrated fastjsonschema-backed SchemaRegistry loading docs/ws-schema/*.json; validating inbound events in warn mode and tagging records; added GET /api/schemas; extended GET /api/metrics with schemaValidation counters; WS broadcasts now include validation summary."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - /api/schemas returns all required schemas with descriptors; /api/metrics includes schemaValidation with non-decreasing counters (observed total 786->811); WS /api/ws/stream messages include validation.ok and validation.schema for game_state_update and trade events. All routes respect /api prefix and environment constraints."
 
 ## frontend:
   - task: "Schema validation + /api/schemas + metrics.schemaValidation"
