@@ -467,6 +467,7 @@ class RugsSocketService:
 
         @self.sio.on('standard/sideBetResult')
         async def on_side_bet_result(payload):
+            metrics.incr_message()
             await self._handle_side_bet('standard/sideBetResult', payload)
 
         @self.sio.on('gameStatePlayerUpdate')
