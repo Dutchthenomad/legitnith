@@ -32,7 +32,7 @@ body { background: var(--rugs-bg); color: var(--rugs-fg); }
 .btn-primary { background: var(--rugs-primary); color: var(--rugs-primary-fore); border: 1px solid #e6b400; }
 .btn-primary:hover { background: var(--rugs-primary-hover); }
 
-.kv { font-size: 12px; color: var(--rugs-muted-fg); text-transform: uppercase; letter-spacing: 0.08em; }
+.kv { font-size: 12px; color: var(--rugs-muted-fg); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; }
 .kv-val { font-size: 13px; font-weight: 600; }
 
 .tabs-bg { background: var(--rugs-muted); border: 1px solid var(--rugs-border); border-radius: 10px; overflow: hidden; }
