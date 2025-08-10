@@ -11,7 +11,8 @@ Start/Stop
 
 Health & Monitoring
 - GET /api/health for liveness
-- GET /api/metrics for service stats including schemaValidation counters
+- GET /api/readiness for readiness (Mongo ping + upstream connection), includes dbOk, dbPingMs
+- GET /api/metrics for service stats including schemaValidation counters and wsSlowClientDrops/dbPingMs
 - GET /api/connection for upstream Socket.IO status
 - Check backend logs: tail -n 100 /var/log/supervisor/backend.*.log
 
