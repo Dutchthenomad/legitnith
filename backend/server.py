@@ -477,6 +477,7 @@ class RugsSocketService:
 
         @self.sio.on('rugPool')
         async def on_rug_pool(payload):
+            metrics.incr_message()
             await self._store_event("rugPool", payload)
 
         @self.sio.on('leaderboard')
