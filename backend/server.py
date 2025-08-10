@@ -612,6 +612,10 @@ class Metrics:
 
     def incr_error(self, key: str):
         self.error_counts[key] = self.error_counts.get(key, 0) + 1
+        self.last_error_at = now_utc()
+
+    def incr_ws_drop(self, n: int = 1):
+        self.ws_slow_client_drops += int(n)
 
     def msgs_per_sec_window(self, window_seconds: int = 60) -> float:
         if not self.msg_times:
