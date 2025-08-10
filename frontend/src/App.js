@@ -457,9 +457,12 @@ function App() {
 
   const applyRulesToMessage = (m) => {
     if (!rules || rules.length === 0) return true;
-    // map outbound type to schema key
-    const schemaKey = outboundToSchemaKey[m.type];
-    const relevant = rules.filter((r) => r.event === schemaKey);
+    // map outbound type to one or more schema keys
+    const schemaKeysSet = outboundToSchemaKeys[m.type];
+    const relevant = rules.filter((r) => {
+      if (!schemaKeysSet) return false;
+      return schemaKeysSet.has(r.event);
+    });
     if (relevant.length === 0) return true;
     try {
       return relevant.every((r) => {
