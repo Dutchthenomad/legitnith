@@ -1185,6 +1185,19 @@ async def quality_list(limit: int = 50):
         out.append({"id": r.get("id"), "quality": r.get("quality")})
     return {"items": out}
 
+    # Periodic prune of in-memory game_stats to prevent unbounded growth
+    try:
+        if auth_svc and isinstance(auth_svc.game_stats, dict):
+            now_ts = time.time()
+            # Remove games not updated in > 24h or keep only most recent 200 by last_tick
+            if len(auth_svc.game_stats) > 250:
+                # sort by last_tick desc
+                keep = sorted(auth_svc.game_stats.items(), key=lambda kv: (kv[1].get("last_tick", 0)), reverse=True)[:200]
+                auth_svc.game_stats = dict(keep)
+            # time-based prune using no explicit timestamps; rely on size cap above
+    except Exception as e:
+        logger.warning(f"game_stats prune warn: {e}")
+
 @api_router.get("/prng/tracking")
 async def prng_tracking(limit: int = 50):
     limit = max(1, min(limit, 200))
