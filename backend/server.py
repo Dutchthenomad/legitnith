@@ -578,7 +578,7 @@ metrics = Metrics()
 # Socket.IO Background Listener (read-only) + compaction + quality flags
 ########################################################
 
-SIO_URL = "https://backend.rugs.fun?frontend-version=1.0"
+SIO_URL = os.environ.get("RUGS_UPSTREAM_URL", "https://backend.rugs.fun?frontend-version=1.0")
 
 class RugsSocketService:
     def __init__(self, db):
