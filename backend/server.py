@@ -208,7 +208,7 @@ def drift_price(price: float, rand_fn, version: str = 'v3') -> float:
         change = drift + (volatility * (2 * rand_fn() - 1))
 
     new_price = price * (1 + change)
-    if new_price &lt; 0:
+    if new_price < 0:
         new_price = 0.0
     return new_price
 
