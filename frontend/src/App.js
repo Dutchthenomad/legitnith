@@ -401,9 +401,9 @@ function App() {
       const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
       const p = presets[idx];
       if (p) {
-        setFilters(p.filters || filters);
+        setFilters({ ...filters, ...(p.filters || {}) });
         setRegexStr(p.regex || "");
-        setRules(p.rules || []);
+        setRules(Array.isArray(p.rules) ? p.rules : []);
       }
     } catch (_) {}
   };
