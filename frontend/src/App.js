@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import axios from "axios";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
@@ -6,10 +6,11 @@ import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Separator } from "./components/ui/separator";
 import { FixedSizeList as List } from "react-window";
-
 import { Cpu, RefreshCcw } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
 // Feature flag (toggleable)
 const HUD_FEATURES_ENABLED = true;
 
@@ -42,13 +43,11 @@ class RingBuffer {
     return out;
   }
   clear() {
-    this.start = 0; this.size = 0; this.suppressed = 0;
+    this.start = 0;
+    this.size = 0;
+    this.suppressed = 0;
   }
 }
-
-
-
-const API = `${BACKEND_URL}/api`;
 
 function usePolling(url, intervalMs = 1000) {
   const [data, setData] = useState(null);
@@ -94,7 +93,12 @@ const Header = ({ connected, sinceConnectedMs }) => {
             <span className="text-muted-foreground">{connected ? "Connected" : "Disconnected"}</span>
           </div>
           {connected && (
-            <Badge variant="secondary" className="text-[10px] bg-[var(--rugs-primary)] text-[var(--rugs-primary-fore)] border border-[var(--rugs-primary-hover)]">{Math.floor((sinceConnectedMs || 0) / 1000)}s session</Badge>
+            <Badge
+              variant="secondary"
+              className="text-[10px] bg-[var(--rugs-primary)] text-[var(--rugs-primary-fore)] border border-[var(--rugs-primary-hover)]"
+            >
+              {Math.floor((sinceConnectedMs || 0) / 1000)}s session
+            </Badge>
           )}
         </div>
       </div>
@@ -109,7 +113,12 @@ const LiveOverview = ({ live, prngStatus, onRefresh, onVerify, verifying }) => {
     { label: "Tick", value: live?.tickCount ?? "-" },
     { label: "Price", value: live?.price ? live.price.toFixed(6) : "-" },
     { label: "Cooldown", value: live?.cooldownTimer ?? "-" },
-    { label: "Seed Hash", value: live?.provablyFair?.serverSeedHash ? `${live.provablyFair.serverSeedHash.slice(0, 10)}…` : "-" },
+    {
+      label: "Seed Hash",
+      value: live?.provablyFair?.serverSeedHash
+        ? `${live.provablyFair.serverSeedHash.slice(0, 10)}…`
+        : "-",
+    },
   ];
 
   return (
@@ -117,17 +126,25 @@ const LiveOverview = ({ live, prngStatus, onRefresh, onVerify, verifying }) => {
       {items.map((it) => (
         <div key={it.label} className="hud-card px-3 py-3">
           <div className="kv">{it.label}</div>
-          <div className="kv-val mt-1 truncate" title={String(it.value)}>{it.value}</div>
+          <div className="kv-val mt-1 truncate" title={String(it.value)}>
+            {it.value}
+          </div>
         </div>
       ))}
       <div className="hud-card px-3 py-3 flex items-center justify-between gap-2">
         <div>
           <div className="kv">PRNG</div>
-          <div className="kv-val mt-1" title={prngStatus?.status || "-"}>{prngStatus?.status || "-"}</div>
+          <div className="kv-val mt-1" title={prngStatus?.status || "-"}>
+            {prngStatus?.status || "-"}
+          </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={onRefresh} variant="secondary" className="h-8 btn-primary"><RefreshCcw className="w-3 h-3 mr-1" />Ping</Button>
-          <Button onClick={onVerify} disabled={!live?.gameId || verifying} className="h-8 btn-primary">{verifying ? "Verifying..." : "Verify"}</Button>
+          <Button onClick={onRefresh} variant="secondary" className="h-8 btn-primary">
+            <RefreshCcw className="w-3 h-3 mr-1" />Ping
+          </Button>
+          <Button onClick={onVerify} disabled={!live?.gameId || verifying} className="h-8 btn-primary">
+            {verifying ? "Verifying..." : "Verify"}
+          </Button>
         </div>
       </div>
     </div>
@@ -136,12 +153,73 @@ const LiveOverview = ({ live, prngStatus, onRefresh, onVerify, verifying }) => {
 
 const JsonPane = ({ data }) => (
   <div className="hud-card p-3 overflow-auto max-h-[420px]">
-    <pre className="code-block text-xs text-muted-foreground">{data ? JSON.stringify(data, null, 2) : "No data yet"}</pre>
-  const metricsPoll = usePolling(`${API}/metrics`, 2000);
-  const metrics = metricsPoll.data;
-
+    <pre className="code-block text-xs text-muted-foreground">
+      {data ? JSON.stringify(data, null, 2) : "No data yet"}
+    </pre>
   </div>
 );
+
+const HealthStrip = ({ wsConnected, metrics, bufferDepth, suppressed, lastEventIso }) => (
+  <div className="hud-card px-3 py-2 flex items-center gap-4">
+    <div className="flex items-center gap-2 text-xs">
+      <span className={`badge-dot ${wsConnected ? "bg-emerald-500" : "bg-red-500"}`} />
+      <span>WS: {wsConnected ? "OK" : "Down"}</span>
+    </div>
+    <div className="text-xs">
+      Msgs/sec: {typeof metrics?.messagesPerSecond1m === "number" ? metrics.messagesPerSecond1m.toFixed(2) : "0.00"}
+    </div>
+    <div className="text-xs">Buffer: {bufferDepth}{suppressed > 0 ? ` (drop ${suppressed})` : ""}</div>
+    <div className="text-xs">Last evt: {lastEventIso ? new Date(lastEventIso).toLocaleTimeString() : "-"}</div>
+  </div>
+);
+
+const FilterToolbar = ({ filters, setFilters, regexStr, setRegexStr, regexValid, onPresetSave, onPresetApply }) => {
+  return (
+    <div className="hud-card px-3 py-2 flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={filters.gs ? "default" : "secondary"} onClick={() => setFilters({ ...filters, gs: !filters.gs })}>game_state</Button>
+        <Button size="sm" variant={filters.trade ? "default" : "secondary"} onClick={() => setFilters({ ...filters, trade: !filters.trade })}>trade</Button>
+        <Button size="sm" variant={filters.god ? "default" : "secondary"} onClick={() => setFilters({ ...filters, god: !filters.god })}>god_candle</Button>
+        <Button size="sm" variant={filters.rug ? "default" : "secondary"} onClick={() => setFilters({ ...filters, rug: !filters.rug })}>rug</Button>
+        <Button size="sm" variant={filters.side ? "default" : "secondary"} onClick={() => setFilters({ ...filters, side: !filters.side })}>side_bet</Button>
+      </div>
+      <input
+        className={`px-2 py-1 text-xs rounded border ${regexValid ? "border-[var(--rugs-border)]" : "border-[var(--rugs-danger)]"} bg-transparent`}
+        value={regexStr}
+        onChange={(e) => setRegexStr(e.target.value)}
+        placeholder="regex filter (JSON match)"
+        style={{ minWidth: 220 }}
+      />
+      <Button size="sm" onClick={onPresetSave}>Save preset</Button>
+      <div className="flex items-center gap-1">
+        {[0,1,2,3,4].map((i) => (
+          <Button key={i} size="sm" variant="secondary" onClick={() => onPresetApply(i)}>P{i+1}</Button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const MessageList = ({ items }) => {
+  const Row = ({ index, style }) => {
+    const m = items[index];
+    const txt = JSON.stringify(m);
+    return (
+      <div style={style} className="px-2 text-[11px] text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">
+        <span className="mr-2 font-semibold text-[var(--rugs-primary)]">{m.type}</span>
+        {txt}
+      </div>
+    );
+  };
+  const height = Math.min(320, Math.max(120, items.length * 26));
+  return (
+    <div className="hud-card">
+      <List height={height} width={"100%"} itemCount={items.length} itemSize={26}>
+        {Row}
+      </List>
+    </div>
+  );
+};
 
 function App() {
   const [wsConnected, setWsConnected] = useState(false);
@@ -154,9 +232,10 @@ function App() {
   const { data: conn } = usePolling(`${API}/connection`, 1500);
   const { data: live, error: liveErr } = usePolling(`${API}/live`, 1000);
   const { data: snaps } = usePolling(`${API}/snapshots?limit=25`, 3000);
-  const { data: games } = usePolling(`${API}/games?limit=10`, 5000);
+  const { data: games } = usePolling(`${API}/games?limit=200`, 5000);
   const { data: currentGame } = usePolling(`${API}/games/current`, 2000);
   const { data: prng } = usePolling(`${API}/prng/tracking?limit=10`, 5000);
+  const { data: metrics } = usePolling(`${API}/metrics`, 2000);
 
   const [verifying, setVerifying] = useState(false);
   const currentPrng = useMemo(() => {
@@ -171,6 +250,17 @@ function App() {
   };
 
   const verifyNow = async () => {
+    if (!currentGame?.id) return;
+    setVerifying(true);
+    try {
+      await axios.post(`${API}/prng/verify/${currentGame.id}`);
+    } catch (e) {
+      // ignore for HUD
+    } finally {
+      setTimeout(() => setVerifying(false), 500);
+    }
+  };
+
   const onPresetSave = () => {
     try {
       const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
@@ -191,16 +281,6 @@ function App() {
     } catch (_) {}
   };
 
-    if (!currentGame?.id) return;
-    setVerifying(true);
-    try {
-      await axios.post(`${API}/prng/verify/${currentGame.id}`);
-    } catch (e) {
-      // ignore for HUD
-    } finally {
-      setTimeout(() => setVerifying(false), 500);
-    }
-  };
   // WS stream subscription for HUD filter panel
   useEffect(() => {
     if (!HUD_FEATURES_ENABLED) return;
@@ -218,7 +298,11 @@ function App() {
 
     ws.onmessage = (ev) => {
       let msg;
-      try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      try {
+        msg = JSON.parse(ev.data);
+      } catch (_) {
+        return;
+      }
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "heartbeat" || msg.type === "hello") return;
       buffer.push(msg);
@@ -226,7 +310,9 @@ function App() {
     };
 
     return () => {
-      try { ws.close(); } catch (_) {}
+      try {
+        ws.close();
+      } catch (_) {}
     };
   }, [buffer]);
 
@@ -257,22 +343,91 @@ function App() {
     return arr.slice(-5000); // safety cap for rendering
   }, [buffer, filters, regexStr, regexValid]);
 
+  // Minimal charts (SVG only)
+  const DurationHistogramSVG = ({ items }) => {
+    const ticks = (items || []).map((g) => Number(g.totalTicks || 0)).filter((n) => Number.isFinite(n) && n >= 0);
+    const N = Math.min(200, ticks.length);
+    const arr = ticks.slice(0, N);
+    if (arr.length === 0) return <div className="hud-card p-3 text-xs text-muted-foreground">No data</div>;
+    const binSize = 50;
+    const maxTick = Math.max(...arr);
+    const bins = Math.max(5, Math.ceil((maxTick + 1) / binSize));
+    const counts = new Array(bins).fill(0);
+    arr.forEach((t) => { counts[Math.min(bins - 1, Math.floor(t / binSize))] += 1; });
+    const w = 400, h = 120, pad = 6;
+    const maxCount = Math.max(...counts) || 1;
+    const barW = (w - pad * 2) / bins;
+    return (
+      <div className="hud-card p-3">
+        <div className="text-xs mb-2 text-muted-foreground">Duration Histogram (ticks)</div>
+        <svg width={w} height={h}>
+          {counts.map((c, i) => {
+            const bh = (c / maxCount) * (h - 20);
+            return (
+              <rect key={i} x={pad + i * barW + 1} y={h - bh - 10} width={barW - 2} height={bh} fill="#ffc700" />
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  const PeakSparklineSVG = ({ items }) => {
+    const peaks = (items || []).map((g) => Number(g.peakMultiplier || 0)).filter((n) => Number.isFinite(n) && n > 0);
+    const N = Math.min(200, peaks.length);
+    const arr = peaks.slice(0, N).reverse(); // newest on right
+    if (arr.length === 0) return <div className="hud-card p-3 text-xs text-muted-foreground">No data</div>;
+    const w = 400, h = 120, pad = 6;
+    const maxV = Math.max(...arr);
+    const minV = Math.min(...arr);
+    const pts = arr.map((v, i) => {
+      const x = pad + (i * (w - pad * 2)) / Math.max(1, arr.length - 1);
+      const y = h - 10 - ((v - minV) / Math.max(1e-6, (maxV - minV))) * (h - 20);
+      return `${x},${y}`;
+    });
+    return (
+      <div className="hud-card p-3">
+        <div className="text-xs mb-2 text-muted-foreground">Peak Multiplier Sparkline</div>
+        <svg width={w} height={h}>
+          <polyline points={pts.join(" ")} fill="none" stroke="#ef7104" strokeWidth="2" />
+        </svg>
+      </div>
+    );
+  };
+
   const bufferDepth = buffer.size;
   const suppressed = buffer.suppressed;
-
 
   return (
     <div className="min-h-screen">
       <Header connected={!!conn?.connected} sinceConnectedMs={conn?.since_connected_ms} />
       <main className="max-w-6xl mx-auto px-6 py-6 space-y-6">
         <LiveOverview live={live} prngStatus={currentPrng} onRefresh={refresh} onVerify={verifyNow} verifying={verifying} />
+
+        {HUD_FEATURES_ENABLED && (
+          <div className="space-y-3">
+            <HealthStrip wsConnected={wsConnected} metrics={metrics} bufferDepth={bufferDepth} suppressed={suppressed} lastEventIso={lastEventIso} />
+            <FilterToolbar
+              filters={filters}
+              setFilters={setFilters}
+              regexStr={regexStr}
+              setRegexStr={setRegexStr}
+              regexValid={regexValid}
+              onPresetSave={onPresetSave}
+              onPresetApply={onPresetApply}
+            />
+            <MessageList items={filtered} />
+          </div>
+        )}
+
         <div className="tabs-bg">
           <Tabs defaultValue="live" className="w-full p-3">
-            <TabsList className="grid grid-cols-4 w-full">
+            <TabsList className="grid grid-cols-5 w-full">
               <TabsTrigger value="live" className="text-xs">Live State</TabsTrigger>
               <TabsTrigger value="snapshots" className="text-xs">Recent Snapshots</TabsTrigger>
               <TabsTrigger value="games" className="text-xs">Games</TabsTrigger>
               <TabsTrigger value="prng" className="text-xs">PRNG Tracking</TabsTrigger>
+              <TabsTrigger value="diagnostics" className="text-xs">Diagnostics</TabsTrigger>
             </TabsList>
             <TabsContent value="live" className="mt-3">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -295,8 +450,15 @@ function App() {
             <TabsContent value="prng" className="mt-3">
               <JsonPane data={prng} />
             </TabsContent>
+            <TabsContent value="diagnostics" className="mt-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <DurationHistogramSVG items={games?.items || []} />
+                <PeakSparklineSVG items={games?.items || []} />
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
+
         {liveErr && (
           <div className="text-xs text-red-400">Error loading live data. Ensure backend is connected.</div>
         )}
