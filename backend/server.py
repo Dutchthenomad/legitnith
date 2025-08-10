@@ -290,7 +290,7 @@ async def run_prng_verification(game_id: str):
         return True
 
     match = arrays_match(expected_prices, verified["prices"]) and (
-        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) &lt; 1e-6
+        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) < 1e-6
     )
 
     result = {
@@ -397,7 +397,7 @@ class Metrics:
         if not self.msg_times:
             return 0.0
         now_s = int(time.time())
-        count = sum(1 for t in self.msg_times if now_s - t &lt; window_seconds)
+        count = sum(1 for t in self.msg_times if now_s - t < window_seconds)
         return count / float(window_seconds)
 
 metrics = Metrics()
@@ -567,11 +567,11 @@ class RugsSocketService:
         if game_id:
             stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
             q = stats.get("quality", {})
-            if tick_count &lt;= stats.get("last_tick", -1):
+            if tick_count <= stats.get("last_tick", -1):
                 q["duplicateOrOutOfOrder"] = True
             if (tick_count - stats.get("last_tick", 0)) &gt; 10:
                 q["largeGap"] = True
-            if price &lt;= 0:
+            if price <= 0:
                 q["priceNonPositive"] = True
             q["lastCheckedAt"] = now_utc()
             stats["quality"] = q
@@ -619,7 +619,7 @@ class RugsSocketService:
             is_god_candle = (ratio &gt;= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
             if is_god_candle:
                 try:
-                    under_cap = prev_price &lt;= 100 * STARTING_PRICE
+                    under_cap = prev_price <= 100 * STARTING_PRICE
                     gc_doc = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickIndex": int(tick_count), "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "version": version, "underCap": bool(under_cap), "createdAt": now_utc()}
                     await self.db.god_candles.insert_one(gc_doc)
                     await self.db.games.update_one({"id": game_id}, {"$set": {"hasGodCandle": True, "godCandleTick": int(tick_count), "godCandleFromPrice": prev_price, "godCandleToPrice": price, "updatedAt": now_utc()}})
