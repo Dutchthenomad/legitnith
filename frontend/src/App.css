@@ -21,7 +21,7 @@ body { background: var(--rugs-bg); color: var(--rugs-fg); }
 
 .brand { font-family: 'Dynapuff', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; letter-spacing: 0.2px; }
 
-.hud-card { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: var(--rugs-card); border: 1px solid var(--rugs-border); border-radius: 12px; }
+.hud-card { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: var(--rugs-card); border: 1px solid var(--rugs-border); border-radius: 12px; overflow: hidden; }
 
 .code-block { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; line-height: 1.4; }
 
