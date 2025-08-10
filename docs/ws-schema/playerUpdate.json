@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "playerUpdate.json",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "shared.defs.json#/$defs/playerId" },
+    "authenticated": { "type": "boolean" },
+    "autobuysEnabled": { "type": "boolean" },
+    "autosellPrice": { "type": ["number", "null"] },
+    "avgCost": { "type": "number" },
+    "bonusBalance": { "type": "number" },
+    "bonusWagerReq": { "type": "number" },
+    "bonusWagered": { "type": "number" },
+    "cash": { "type": "number" },
+    "crateCooldown": {
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "cooldownEnds": { "$ref": "shared.defs.json#/$defs/timestamp_ms" },
+        "remainingSeconds": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "crateKeys": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "cumulativePnL": { "type": "number" },
+    "hasInteracted": { "type": "boolean" },
+    "hitMaxWin": { "type": "boolean" },
+    "levelInfo": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "integer", "minimum": 0 },
+        "xp": { "type": "integer", "minimum": 0 },
+        "xpForNextLevel": { "type": "integer", "minimum": 0 },
+        "totalXP": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "pnlPercent": { "type": "number" },
+    "positionQty": { "type": "number" },
+    "recentCrateRewards": { "type": "array", "items": { "type": "object" } },
+    "selectedCoin": { "type": ["string", "null"] },
+    "shitcoinBalances": { "type": "object", "additionalProperties": { "type": "number" } },
+    "sideBet": { "type": ["object", "null"] },
+    "sidebetPnl": { "type": "number" },
+    "totalInvested": { "type": "number" }
+  },
+  "required": ["id", "cash"],
+  "additionalProperties": true
+}

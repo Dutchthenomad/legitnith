@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gameStateUpdate.json",
+  "type": "object",
+  "properties": {
+    "active": { "type": "boolean" },
+    "rugged": { "type": "boolean" },
+    "allowPreRoundBuys": { "type": "boolean" },
+    "cooldownPaused": { "type": "boolean" },
+    "cooldownTimer": { "type": "integer", "minimum": 0 },
+    "connectedPlayers": { "type": "integer", "minimum": 0 },
+    "gameId": { "$ref": "shared.defs.json#/$defs/gameId" },
+    "gameVersion": { "type": "string" },
+    "tickCount": { "$ref": "shared.defs.json#/$defs/tick" },
+    "price": { "type": "number", "minimum": 0 },
+    "prices": { "type": "array", "items": { "type": "number" } },
+    "tradeCount": { "type": "integer", "minimum": 0 },
+    "leaderboard": { "type": "array", "items": { "type": "object" } },
+    "provablyFair": {
+      "type": "object",
+      "properties": {
+        "serverSeedHash": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "required": ["serverSeedHash", "version"],
+      "additionalProperties": true
+    },
+    "rugpool": { "type": "object", "additionalProperties": true },
+    "rugRoyale": { "type": "object", "additionalProperties": true },
+    "trades": { "type": "array" },
+    "gameHistory": {
+      "description": "Chronological history of recent games, including reveal data for completed games.",
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "shared.defs.json#/$defs/gameId" },
+          "provablyFair": {
+            "type": "object",
+            "properties": {
+              "serverSeedHash": { "type": "string" },
+              "version": { "type": "string" },
+              "serverSeed": { "type": ["string", "null"] }
+            },
+            "required": ["serverSeedHash", "version"],
+            "additionalProperties": true
+          },
+          "rugged": { "type": ["boolean", "null"] },
+          "multiplier": { "type": ["number", "null"] }
+        },
+        "required": ["id"],
+        "additionalProperties": true
+      }
+    },
+    "averageMultiplier": { "type": ["number", "null"] },
+    "count2x": { "type": ["integer", "null"], "minimum": 0 },
+    "count10x": { "type": ["integer", "null"], "minimum": 0 },
+    "count50x": { "type": ["integer", "null"], "minimum": 0 },
+    "count100x": { "type": ["integer", "null"], "minimum": 0 }
+  },
+  "required": ["gameId", "active", "rugged", "allowPreRoundBuys"],
+  "additionalProperties": true
+}

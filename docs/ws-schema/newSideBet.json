@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "newSideBet.json",
+  "type": "object",
+  "properties": {
+    "playerId": { "type": "string" },
+    "gameId": { "type": "string" },
+    "username": { "type": "string" },
+    "betAmount": { "type": "number" },
+    "payout": { "type": ["number", "null"] },
+    "profit": { "type": ["number", "null"] },
+    "xPayout": { "type": "number" },
+    "coinAddress": { "$ref": "shared.defs.json#/$defs/address" },
+    "startTick": { "$ref": "shared.defs.json#/$defs/tick" },
+    "endTick": { "$ref": "shared.defs.json#/$defs/tick" },
+    "tickIndex": { "$ref": "shared.defs.json#/$defs/tick" },
+    "timestamp": { "type": "integer" },
+    "type": { "type": "string", "enum": ["placed", "payout"] }
+  },
+  "additionalProperties": true,
+  "required": [
+    "playerId", "gameId", "username", "betAmount", "xPayout", "coinAddress",
+    "startTick", "endTick", "tickIndex", "timestamp", "type"
+  ]
+}

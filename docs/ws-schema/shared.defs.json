@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "shared.defs.json",
+  "$defs": {
+    "gameId": { "type": "string", "minLength": 1 },
+    "playerId": { "type": "string", "minLength": 1 },
+    "username": { "type": "string", "minLength": 1 },
+    "address": { "type": "string", "minLength": 32 },
+    "tick": { "type": "integer", "minimum": 0 },
+    "timestamp_ms": { "type": "integer", "minimum": 0 },
+    "tradeId": { "type": "string", "minLength": 1 },
+    "sol": { "type": "number", "minimum": 0 },
+    "coin": { "type": "string", "minLength": 1 }
+  }
+}

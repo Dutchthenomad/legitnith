@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gameStatePlayerUpdate.json",
+  "title": "gameStatePlayerUpdate (inbound)",
+  "description": "Auto-generated scaffold for inbound event 'gameStatePlayerUpdate' captured from Rugs.fun. Tighten with real fields as needed.",
+  "type": "object",
+  "additionalProperties": true,
+  "x_context": { "event": "gameStatePlayerUpdate", "direction": "in", "source": "rugs.fun" }
+}
