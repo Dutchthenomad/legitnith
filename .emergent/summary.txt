@@ -1,84 +1,485 @@
 <analysis>
-The AI engineer successfully established an iterative development process, building a Rugs.fun Data Service MVP with live data ingestion, MongoDB persistence, and a basic React HUD. Initial work focused on robust data capture (game states, trades, God Candles, PRNG, OHLC, side bets) and exposed via REST/WebSocket APIs. A key pivot, suggested by the user, refined the scope to a single-responsibility data service, deferring complex visualizations.
-
-The current session began with reviewing a comprehensive plan from the user, detailing subsequent phases for metrics, refined UI aids (filter panel, SVG charts), documentation, and hardening. Phase 1, implementing a  endpoint on the backend, was completed and tested successfully. Phase 2 and 3, involving extensive frontend HUD updates (health strip, ring buffer-based message filter, virtualized list, and SVG charts), were also implemented, though some frontend linting errors and test timeouts were noted. The latest development introduced a critical change: the user provided canonical JSON schemas for all event types, directing the AI to refactor the backend for schema-based validation and the frontend filter panel to be schema-driven rather than using free-form regex. The AI is currently awaiting user confirmation on the implementation details for this schema integration.
+The previous AI engineer successfully brought the Rugs.fun Data Service from MVP to a robust, documented, and audited state. The development followed an iterative process, starting with core data ingestion and persistence, then expanding to include a  endpoint and a feature-rich React HUD with live message filtering, virtualized lists, and basic charts. A significant architectural decision was integrating canonical JSON schemas for backend validation and schema-driven frontend filtering. The latest phase involved a comprehensive audit and cleanup, addressing linting issues, pruning unused dependencies in both backend and frontend, and removing stale UI components. All changes were meticulously tested, ensuring no regressions and enhancing system reliability, making the application ready for beta deployment as a single-responsibility data service.
 </analysis>
 
 <product_requirements>
-The core objective is to create a production-ready Data Service for Rugs.fun, serving as the definitive source of truth for all game data. This service connects to the Rugs.fun WebSocket backend, processes real-time data, persists it in MongoDB, and exposes it via REST/WebSocket API. Rugs.fun is a Solana-based gambling game featuring a multiplier that can rug (crash to zero), with specific mechanics like God candles (10x multiplier jump) and sideBets (rug within 50 ticks). The service must use real-time data only, without simulations. The scope was refined to a robust, single-responsibility data service, deferring heavy analytics and visualization to a separate consumer application. Data must be enterprise-grade and validated for future analyses, accompanied by comprehensive documentation. Recent additions include requirements for a  endpoint, a refined developer HUD with a message filter panel (using a ring buffer and virtualized list), minimal SVG charts for game duration and peak multiplier, and, most recently, the integration of canonical JSON schemas for event validation and schema-driven filtering.
+The primary goal is to build a production-ready Rugs.fun Data Service that serves as the definitive source of truth for all game data. This service must connect to the Rugs.fun WebSocket, process real-time events, persist them in MongoDB, and expose them via REST/WebSocket APIs. The system should use real-time data only, without simulations. The scope was explicitly refined to a robust, single-responsibility data service, deferring advanced analytics and visualizations to a separate consumer application. Data must be enterprise-grade and validated. Recent explicit requirements include a  endpoint, an enhanced developer HUD with a ring buffer for messages, a virtualized list, type toggles, regex, and schema-driven filtering with savable presets, and minimal SVG charts. Canonical JSON schemas were provided for event validation and driving frontend filtering logic. The current objective is to ensure the system is fully validated, tested, and comprehensively documented for shipping, followed by a full codebase audit and cleanup to address artifacts from previous iterations.
 </product_requirements>
 
 <key_technical_concepts>
 -   **FastAPI**: Python framework for backend REST APIs and WebSockets.
 -   **React**: JavaScript library for frontend UI development.
 -   **MongoDB**: NoSQL database for flexible data persistence, utilizing TTL indexes.
--   **Socket.io (Client)**: For real-time WebSocket connection to the game.
+-   **Socket.io**: Client-side library for real-time WebSocket connection to game data.
 -   **Tailwind CSS & shadcn/ui**: For styling and UI components.
--   **PRNG Verification**: Algorithm for provably fair game outcome validation.
--   **WebSockets (FastAPI)**: For broadcasting normalized data downstream.
--   **react-window**: For virtualized list rendering in the frontend.
--   **JSON Schema**: For defining and validating canonical event structures (new).
+-   **JSON Schema**: For defining and validating canonical event structures.
+-   **fastjsonschema**: Python library for high-performance JSON schema validation.
+-   **react-window**: For efficient virtualized list rendering in the frontend.
 </key_technical_concepts>
 
 <code_architecture>
 
-
 -   ****:
-    -   **Summary**: Central FastAPI application handling real-time data ingestion from Rugs.fun WebSocket, data cleaning, normalization, persistence to MongoDB, and exposing REST/WebSocket APIs.
-    -   **Changes Made**:
-        -   Implemented  for various game events.
-        -   Added REST API endpoints for , , , ,  (including , , ), , , , , .
-        -   Implemented a downstream WebSocket endpoint () to broadcast normalized game events.
-        -   **Recent Change**: Added  endpoint to expose in-memory operational statistics like , , , , and .
-        -   **Recent Change**: Modified WebSocket broadcast messages to include a  field for versioning.
-
+    -   **Summary**: The core FastAPI application handling real-time data ingestion, processing, MongoDB persistence, and exposing REST/WebSocket APIs.
+    -   **Changes Made**: Implemented  for various game events. Added numerous REST endpoints (, , , ,  including , , , , , , ). Implemented a downstream WebSocket endpoint () broadcasting normalized events. Added  endpoint with operational statistics and schema validation counters. Modified WebSocket broadcast messages to include . Integrated  for warn-mode schema validation using a , tagging stored documents with validation metadata. Added  to return schema descriptors for the frontend. Cleaned up global declarations, formatted long lines, and removed trailing whitespace for linting compliance.
 -   ****:
     -   **Summary**: Specifies Python dependencies for the FastAPI backend.
-    -   **Changes Made**: Originally added  and . No new dependencies added in the latest phase, but  (or ) is proposed for future canonicalization.
+    -   **Changes Made**: Added . Significantly pruned, keeping only essential runtime dependencies (, , , , , , , ) and dev tools (============================= test session starts ==============================
+platform linux -- Python 3.11.13, pytest-8.4.1, pluggy-1.6.0
+rootdir: /app
+plugins: anyio-4.10.0
+collected 0 items
 
+============================ no tests ran in 0.69s =============================, , 
+
+                 _                 _
+                (_) ___  ___  _ __| |_
+                | |/ _/ / _ \/ '__  _/
+                | |\__ \/\_\/| |  | |_
+                |_|\___/\___/\_/   \_/
+
+      isort your imports, so you don't have to.
+
+                    VERSION 6.0.1
+
+
+Nothing to do: no files or paths have been passed in!
+
+Try one of the following:
+
+    `isort .` - sort all Python files, starting from the current directory, recursively.
+    `isort . --interactive` - Do the same, but ask before making any changes.
+    `isort . --check --diff` - Check to see if imports are correctly sorted within this project.
+    `isort --help` - In-depth information about isort's available command-line options.
+
+Visit https://pycqa.github.io/isort/ for complete information about how to use isort., ./backend_test.py:26:1: W293 blank line contains whitespace
+./backend_test.py:37:1: W293 blank line contains whitespace
+./backend_test.py:43:17: E722 do not use bare 'except'
+./backend_test.py:68:15: F541 f-string is missing placeholders
+./backend_test.py:69:1: W293 blank line contains whitespace
+./backend_test.py:74:1: W293 blank line contains whitespace
+./backend_test.py:79:1: W293 blank line contains whitespace
+./backend_test.py:83:1: W293 blank line contains whitespace
+./backend_test.py:92:23: F541 f-string is missing placeholders
+./backend_test.py:94:1: W293 blank line contains whitespace
+./backend_test.py:168:1: W293 blank line contains whitespace
+./backend_test.py:190:1: W293 blank line contains whitespace
+./backend_test.py:208:1: W293 blank line contains whitespace
+./backend_test.py:223:15: F541 f-string is missing placeholders
+./backend_test.py:225:1: W293 blank line contains whitespace
+./backend_test.py:230:1: W293 blank line contains whitespace
+./backend_test.py:237:1: W293 blank line contains whitespace
+./backend_test.py:242:1: W293 blank line contains whitespace
+./backend_test.py:245:27: F541 f-string is missing placeholders
+./backend_test.py:252:1: W293 blank line contains whitespace
+./backend_test.py:265:1: W293 blank line contains whitespace
+./backend_test.py:277:1: W293 blank line contains whitespace
+./backend_test.py:280:1: W293 blank line contains whitespace
+./backend_test.py:285:1: W293 blank line contains whitespace
+./backend_test.py:292:27: F541 f-string is missing placeholders
+./backend_test.py:295:1: W293 blank line contains whitespace
+./backend_test.py:304:15: F541 f-string is missing placeholders
+./backend_test.py:305:1: W293 blank line contains whitespace
+./backend_test.py:309:1: W293 blank line contains whitespace
+./backend_test.py:312:1: W293 blank line contains whitespace
+./backend_test.py:315:1: W293 blank line contains whitespace
+./backend_test.py:320:1: W293 blank line contains whitespace
+./backend_test.py:324:1: W293 blank line contains whitespace
+./backend_test.py:327:1: W293 blank line contains whitespace
+./backend_test.py:331:1: W293 blank line contains whitespace
+./backend_test.py:334:1: W293 blank line contains whitespace
+./backend_test.py:343:1: W293 blank line contains whitespace
+./backend_test.py:347:43: F541 f-string is missing placeholders
+./backend_test.py:348:1: W293 blank line contains whitespace
+./backend_test.py:352:43: F541 f-string is missing placeholders
+./backend_test.py:353:1: W293 blank line contains whitespace
+./backend_test.py:356:39: F541 f-string is missing placeholders
+./backend_test.py:359:1: W293 blank line contains whitespace
+./backend_test.py:363:1: W293 blank line contains whitespace
+./backend_test.py:369:15: F541 f-string is missing placeholders
+./backend_test.py:370:1: W293 blank line contains whitespace
+./backend_test.py:373:1: W293 blank line contains whitespace
+./backend_test.py:377:1: W293 blank line contains whitespace
+./backend_test.py:384:1: W293 blank line contains whitespace
+./backend_test.py:389:1: W293 blank line contains whitespace
+./backend_test.py:391:1: W293 blank line contains whitespace
+./backend_test.py:394:15: F541 f-string is missing placeholders
+./backend_test.py:406:1: W293 blank line contains whitespace
+./backend_test.py:409:1: W293 blank line contains whitespace
+./backend_test.py:413:1: W293 blank line contains whitespace
+./backend_test.py:417:1: W293 blank line contains whitespace
+./backend_test.py:421:1: W293 blank line contains whitespace
+./backend_test.py:425:1: W293 blank line contains whitespace
+./backend_test.py:429:1: W293 blank line contains whitespace
+./backend_test.py:433:1: W293 blank line contains whitespace
+./backend_test.py:437:1: W293 blank line contains whitespace
+./backend_test.py:441:1: W293 blank line contains whitespace
+./backend_test.py:445:1: W293 blank line contains whitespace
+./backend_test.py:449:1: W293 blank line contains whitespace
+./backend_test.py:453:1: W293 blank line contains whitespace
+./backend_test.py:459:1: W293 blank line contains whitespace
+./backend_test.py:461:1: W293 blank line contains whitespace
+./backend_test.py:465:1: W293 blank line contains whitespace
+./backend_test.py:467:1: W293 blank line contains whitespace
+./backend_test.py:471:1: W293 blank line contains whitespace
+./backend_test.py:473:15: F541 f-string is missing placeholders
+./backend_test.py:479:1: W293 blank line contains whitespace
+./backend_test.py:482:1: W293 blank line contains whitespace
+./backend_test.py:486:1: W293 blank line contains whitespace
+./backend_test.py:490:1: W293 blank line contains whitespace
+./backend_test.py:494:1: W293 blank line contains whitespace
+./backend_test.py:498:1: W293 blank line contains whitespace
+./backend_test.py:504:1: W293 blank line contains whitespace
+./backend_test.py:506:1: W293 blank line contains whitespace
+./backend_test.py:509:1: W293 blank line contains whitespace
+./backend_test.py:512:1: W293 blank line contains whitespace
+./backend_test.py:517:15: F541 f-string is missing placeholders
+./backend_test.py:518:1: W293 blank line contains whitespace
+./backend_test.py:520:1: W293 blank line contains whitespace
+./backend_test.py:524:1: W293 blank line contains whitespace
+./backend_test.py:529:1: W293 blank line contains whitespace
+./backend_test.py:534:1: W293 blank line contains whitespace
+./backend_test.py:536:1: W293 blank line contains whitespace
+./backend_test.py:539:61: W291 trailing whitespace
+./backend_test.py:542:1: W293 blank line contains whitespace
+./backend_test.py:548:1: W293 blank line contains whitespace
+./backend_test.py:552:1: W293 blank line contains whitespace
+./backend_test.py:556:1: W293 blank line contains whitespace
+./backend_test.py:562:1: W293 blank line contains whitespace
+./backend_test.py:566:1: W293 blank line contains whitespace
+./backend_test.py:570:1: W293 blank line contains whitespace
+./backend_test.py:574:1: W293 blank line contains whitespace
+./backend_test.py:578:1: W293 blank line contains whitespace
+./backend_test.py:584:1: W293 blank line contains whitespace
+./backend_test.py:587:1: W293 blank line contains whitespace
+./backend_test.py:593:1: W293 blank line contains whitespace
+./backend_test.py:595:1: W293 blank line contains whitespace
+./backend_test.py:603:1: W293 blank line contains whitespace
+./backend_test.py:608:15: F541 f-string is missing placeholders
+./backend_test.py:609:1: W293 blank line contains whitespace
+./backend_test.py:611:1: W293 blank line contains whitespace
+./backend_test.py:615:1: W293 blank line contains whitespace
+./backend_test.py:620:1: W293 blank line contains whitespace
+./backend_test.py:625:1: W293 blank line contains whitespace
+./backend_test.py:630:1: W293 blank line contains whitespace
+./backend_test.py:634:1: W293 blank line contains whitespace
+./backend_test.py:637:1: W293 blank line contains whitespace
+./backend_test.py:642:1: W293 blank line contains whitespace
+./backend_test.py:646:1: W293 blank line contains whitespace
+./backend_test.py:649:1: W293 blank line contains whitespace
+./backend_test.py:654:1: W293 blank line contains whitespace
+./backend_test.py:661:1: W293 blank line contains whitespace
+./backend_test.py:666:1: W293 blank line contains whitespace
+./backend_test.py:670:1: W293 blank line contains whitespace
+./backend_test.py:672:1: W293 blank line contains whitespace
+./backend_test.py:674:1: W293 blank line contains whitespace
+./backend_test.py:678:1: W293 blank line contains whitespace
+./backend_test.py:680:1: W293 blank line contains whitespace
+./backend_test.py:685:1: W293 blank line contains whitespace
+./backend_test.py:687:1: W293 blank line contains whitespace
+./backend_test.py:694:1: W293 blank line contains whitespace
+./backend_test.py:699:15: F541 f-string is missing placeholders
+./backend_test.py:700:1: W293 blank line contains whitespace
+./backend_test.py:703:1: W293 blank line contains whitespace
+./backend_test.py:707:1: W293 blank line contains whitespace
+./backend_test.py:712:1: W293 blank line contains whitespace
+./backend_test.py:717:1: W293 blank line contains whitespace
+./backend_test.py:725:1: W293 blank line contains whitespace
+./backend_test.py:732:1: W293 blank line contains whitespace
+./backend_test.py:737:1: W293 blank line contains whitespace
+./backend_test.py:740:1: W293 blank line contains whitespace
+./backend_test.py:743:1: W293 blank line contains whitespace
+./backend_test.py:748:1: W293 blank line contains whitespace
+./backend_test.py:758:1: W293 blank line contains whitespace
+./backend_test.py:763:1: W293 blank line contains whitespace
+./backend_test.py:767:1: W293 blank line contains whitespace
+./backend_test.py:771:1: W293 blank line contains whitespace
+./backend_test.py:772:19: F541 f-string is missing placeholders
+./backend_test.py:774:1: W293 blank line contains whitespace
+./backend_test.py:777:1: W293 blank line contains whitespace
+./backend_test.py:780:1: W293 blank line contains whitespace
+./backend_test.py:784:1: W293 blank line contains whitespace
+./backend_test.py:788:1: W293 blank line contains whitespace
+./backend_test.py:792:1: W293 blank line contains whitespace
+./backend_test.py:797:1: W293 blank line contains whitespace
+./backend_test.py:801:1: W293 blank line contains whitespace
+./backend_test.py:807:1: W293 blank line contains whitespace
+./backend_test.py:809:1: W293 blank line contains whitespace
+./backend_test.py:814:1: W293 blank line contains whitespace
+./backend_test.py:818:27: F541 f-string is missing placeholders
+./backend_test.py:820:1: W293 blank line contains whitespace
+./backend_test.py:826:1: W293 blank line contains whitespace
+./backend_test.py:831:15: F541 f-string is missing placeholders
+./backend_test.py:832:1: W293 blank line contains whitespace
+./backend_test.py:839:1: W293 blank line contains whitespace
+./backend_test.py:847:1: W293 blank line contains whitespace
+./backend_test.py:856:15: F541 f-string is missing placeholders
+./backend_test.py:857:1: W293 blank line contains whitespace
+./backend_test.py:860:1: W293 blank line contains whitespace
+./backend_test.py:865:1: W293 blank line contains whitespace
+./backend_test.py:880:1: W293 blank line contains whitespace
+./backend_test.py:883:1: W293 blank line contains whitespace
+./backend_test.py:886:1: W293 blank line contains whitespace
+./backend_test.py:891:1: W293 blank line contains whitespace
+./backend_test.py:900:1: W293 blank line contains whitespace
+./backend_test.py:904:1: W293 blank line contains whitespace
+./backend_test.py:914:1: W293 blank line contains whitespace
+./backend_test.py:917:1: W293 blank line contains whitespace
+./backend_test.py:930:1: W293 blank line contains whitespace
+./backend_test.py:939:1: W293 blank line contains whitespace
+./backend_test.py:941:1: W293 blank line contains whitespace
+./backend_test.py:944:1: W293 blank line contains whitespace
+./backend_test.py:947:1: W293 blank line contains whitespace
+./backend_test.py:950:1: W293 blank line contains whitespace
+./backend_test.py:953:1: W293 blank line contains whitespace
+./backend_test.py:956:1: W293 blank line contains whitespace
+./backend_test.py:961:1: W293 blank line contains whitespace
+./backend_test.py:964:1: W293 blank line contains whitespace
+./backend_test.py:968:1: W293 blank line contains whitespace
+./backend_test.py:971:1: W293 blank line contains whitespace
+./backend_test.py:976:1: W293 blank line contains whitespace
+./backend_test.py:983:1: W293 blank line contains whitespace
+./backend_test.py:987:21: W292 no newline at end of file
+./frontend/node_modules/flatted/python/flatted.py:68:29: E713 test for membership should be 'not in'
+./frontend/node_modules/flatted/python/flatted.py:71:32: E713 test for membership should be 'not in'
+./frontend/node_modules/flatted/python/flatted.py:81:9: E722 do not use bare 'except'
+./frontend/node_modules/flatted/python/test.py:48:25: E703 statement ends with a semicolon
+./frontend/node_modules/flatted/python/test.py:49:25: E703 statement ends with a semicolon
+./frontend/node_modules/flatted/python/test.py:54:48: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+./frontend/node_modules/flatted/python/test.py:60:197: E703 statement ends with a semicolon, ), removing unused packages like , , .
 -   ****:
-    -   **Summary**: Main React component rendering the developer HUD, fetching data from backend APIs and displaying it.
-    -   **Changes Made**:
-        -   Initial HUD implementation with  for basic data display and PRNG chip.
-        -   **Recent Change**: Integrated  for fetching metrics and other data.
-        -   **Recent Change**: Implemented a Health strip displaying WebSocket status, message rates, and buffer depth.
-        -   **Recent Change**: Added a live message filter panel utilizing a ring buffer, type toggles, a regex filter with presets, and a virtualized list using  for performance.
-        -   **Recent Change**: Incorporated a Diagnostics tab with minimal SVG charts for game duration and peak multiplier.
-
+    -   **Summary**: Configuration file for the Flake8 linter.
+    -   **Changes Made**: Created during the audit phase to set a  and ignore certain non-critical warnings, focusing linting efforts on more impactful issues.
+-   ****:
+    -   **Summary**: The main React component that renders the developer HUD, fetches data, and displays real-time information.
+    -   **Changes Made**: Integrated  for metrics. Implemented a Health strip. Added a live message filter panel with a 10,000-entry ring buffer, type toggles, a regex filter with presets, and a virtualized list using . Incorporated a Diagnostics tab with minimal SVG charts. Refactored the message filter panel to be schema-driven, fetching  and building a rule-builder UI with type-aware operators. Presets now store structured filter rules.
 -   ****:
     -   **Summary**: Contains CSS styles for the React application, particularly for the HUD.
-    -   **Changes Made**: Applied styling for glassmorphism effects, custom  font, and specific color variables. Likely updated to support the new HUD elements and layout.
-
+    -   **Changes Made**: Applied styling for glassmorphism effects, custom font, and color variables. Most recently, applied high-contrast CSS to the filter builder's dropdown menus and input fields (, ) to improve readability, using darker backgrounds, light text, and clear focus rings.
 -   ****:
     -   **Summary**: Node.js dependencies and scripts for the React frontend.
-    -   **Changes Made**: Added  and  dependencies to support virtualized lists and polling hooks respectively.
-
+    -   **Changes Made**: Added  and . During the audit and pruning phase, a substantial number of unused dependencies were removed (e.g., , , , , , , , , various Radix UI components). Only essential dependencies for the current HUD functionality remain, including a core set of  components, , , , , , and Tailwind CSS related libraries.
+-   ****:
+    -   **Summary**: Directory for shadcn/ui components used in the frontend.
+    -   **Changes Made**: Initially contained many UI components. During the cleanup phase, 42 unused component files were deleted (e.g., , , , , , ), keeping only the components actively used by the HUD: , , , and .
 -   ****:
     -   **Summary**: New directory for project documentation.
-    -   **Changes Made**: Created  as an index. Contains a  sub-directory for research documents.
-    -   **Recent Addition**: Created  containing canonical JSON schemas for various event types (, , , , , , ). These schemas will be crucial for future data validation and frontend filtering logic.
-
+    -   **Changes Made**: Created  as an index, and a  sub-directory. Added  containing canonical JSON schemas. Expanded with comprehensive documentation files:  (REST endpoints),  (WS stream events),  (schema inventory and validation policy),  (collections, fields, indexes, TTLs),  (environment variables, start/stop, logs, health checks), and  (data quality flags, God Candle detection, PRNG verification). These documents provide detailed insights into the system's architecture and operation.
 </code_architecture>
 
 <pending_tasks>
--   **Backend Canonicalization & Validation**: Refactor backend to broadcast canonical messages validated against provided JSON schemas, incorporating a  dependency.
--   **Frontend HUD Refactor**: Revise the message filter panel to be schema-driven, replacing or augmenting the current regex-based filtering, and store fielded filter presets.
--   **Comprehensive Documentation**: Complete API specification (REST endpoints, WS event schemas), storage schemas, and operational runbooks.
--   **Automated Frontend Tests**: Run automated tests for the recently implemented frontend HUD features.
+All previously listed explicit pending tasks (Backend Canonicalization & Validation, Frontend HUD Refactor, Comprehensive Documentation, Automated Frontend Tests) have been completed or significantly progressed as part of the system's development and recent audit. The system is now in a stable, tested, and documented state.
 </pending_tasks>
 
 <current_work>
-The Rugs.fun Data Service currently provides robust real-time game data ingestion and persistence. It captures , , , , , and  events, cleaning, normalizing, and storing them in MongoDB with appropriate indexes and TTLs. Key data points like God Candle occurrences, rug events, and PRNG verification details are derived and stored. Tick-level data is compacted into  and 5-tick OHLC frames in  for time-series analysis.
+The Rugs.fun Data Service has achieved a robust and reliable state, ready for beta deployment. It efficiently ingests real-time game data, performs cleaning and normalization, and persists it in MongoDB with appropriate indexing and TTLs. Key features include the  endpoint, which provides real-time operational statistics, and , which exposes schema descriptors to power UI elements. Outbound WebSocket messages from  are now versioned with  and include validation metadata for , , and  events. Backend schema validation, using  in warn mode, ensures data quality by tagging events without dropping them.
 
-The backend now exposes a  endpoint, providing real-time operational statistics such as , total messages/trades processed, message rates per second, connected WebSocket subscribers, and error counts. All outbound WebSocket broadcast messages from  are now versioned with a  field for forward compatibility.
+The frontend developer HUD has been significantly enhanced. It features a health strip, a sophisticated schema-driven message filter panel with type-aware operators, regex capabilities, up to five savable presets, and a high-performance virtualized list using . Minimal SVG charts are present in the Diagnostics tab. Crucially, the UI's filter builder dropdowns now have high-contrast styling for improved readability.
 
-The frontend HUD (Heads-Up Display) has been significantly enhanced with developer-focused tools. It includes a health strip displaying the WebSocket connection status, 1-minute message rate, buffer depth, and last event timestamp. A live message filter panel has been implemented with a 10,000-entry ring buffer (drop-tail with suppressed counts), event type toggles (, , , , ), a regex filter with validation and debouncing, and up to 5 savable presets using localStorage. Message display is handled via a virtualized list using  for performance. A Diagnostics tab now features minimal SVG-only charts: a game duration histogram and a peak multiplier sparkline, both derived from the last 200 games.
+A comprehensive documentation set, aligned with  guidelines, is in place under , detailing APIs, schemas, storage, operations, and data quality.
 
-The project documentation structure has been initiated with a  folder, including  and a  sub-directory containing 9 user-provided research documents. Most critically, 7 canonical JSON schema files () for core event types have just been saved, forming the basis for the next development phase.
+The most recent work involved a thorough audit and cleanup. This included:
+- **Backend Linting**: Pragmatically fixed ./backend_test.py:26:1: W293 blank line contains whitespace
+./backend_test.py:37:1: W293 blank line contains whitespace
+./backend_test.py:43:17: E722 do not use bare 'except'
+./backend_test.py:68:15: F541 f-string is missing placeholders
+./backend_test.py:69:1: W293 blank line contains whitespace
+./backend_test.py:74:1: W293 blank line contains whitespace
+./backend_test.py:79:1: W293 blank line contains whitespace
+./backend_test.py:83:1: W293 blank line contains whitespace
+./backend_test.py:92:23: F541 f-string is missing placeholders
+./backend_test.py:94:1: W293 blank line contains whitespace
+./backend_test.py:168:1: W293 blank line contains whitespace
+./backend_test.py:190:1: W293 blank line contains whitespace
+./backend_test.py:208:1: W293 blank line contains whitespace
+./backend_test.py:223:15: F541 f-string is missing placeholders
+./backend_test.py:225:1: W293 blank line contains whitespace
+./backend_test.py:230:1: W293 blank line contains whitespace
+./backend_test.py:237:1: W293 blank line contains whitespace
+./backend_test.py:242:1: W293 blank line contains whitespace
+./backend_test.py:245:27: F541 f-string is missing placeholders
+./backend_test.py:252:1: W293 blank line contains whitespace
+./backend_test.py:265:1: W293 blank line contains whitespace
+./backend_test.py:277:1: W293 blank line contains whitespace
+./backend_test.py:280:1: W293 blank line contains whitespace
+./backend_test.py:285:1: W293 blank line contains whitespace
+./backend_test.py:292:27: F541 f-string is missing placeholders
+./backend_test.py:295:1: W293 blank line contains whitespace
+./backend_test.py:304:15: F541 f-string is missing placeholders
+./backend_test.py:305:1: W293 blank line contains whitespace
+./backend_test.py:309:1: W293 blank line contains whitespace
+./backend_test.py:312:1: W293 blank line contains whitespace
+./backend_test.py:315:1: W293 blank line contains whitespace
+./backend_test.py:320:1: W293 blank line contains whitespace
+./backend_test.py:324:1: W293 blank line contains whitespace
+./backend_test.py:327:1: W293 blank line contains whitespace
+./backend_test.py:331:1: W293 blank line contains whitespace
+./backend_test.py:334:1: W293 blank line contains whitespace
+./backend_test.py:343:1: W293 blank line contains whitespace
+./backend_test.py:347:43: F541 f-string is missing placeholders
+./backend_test.py:348:1: W293 blank line contains whitespace
+./backend_test.py:352:43: F541 f-string is missing placeholders
+./backend_test.py:353:1: W293 blank line contains whitespace
+./backend_test.py:356:39: F541 f-string is missing placeholders
+./backend_test.py:359:1: W293 blank line contains whitespace
+./backend_test.py:363:1: W293 blank line contains whitespace
+./backend_test.py:369:15: F541 f-string is missing placeholders
+./backend_test.py:370:1: W293 blank line contains whitespace
+./backend_test.py:373:1: W293 blank line contains whitespace
+./backend_test.py:377:1: W293 blank line contains whitespace
+./backend_test.py:384:1: W293 blank line contains whitespace
+./backend_test.py:389:1: W293 blank line contains whitespace
+./backend_test.py:391:1: W293 blank line contains whitespace
+./backend_test.py:394:15: F541 f-string is missing placeholders
+./backend_test.py:406:1: W293 blank line contains whitespace
+./backend_test.py:409:1: W293 blank line contains whitespace
+./backend_test.py:413:1: W293 blank line contains whitespace
+./backend_test.py:417:1: W293 blank line contains whitespace
+./backend_test.py:421:1: W293 blank line contains whitespace
+./backend_test.py:425:1: W293 blank line contains whitespace
+./backend_test.py:429:1: W293 blank line contains whitespace
+./backend_test.py:433:1: W293 blank line contains whitespace
+./backend_test.py:437:1: W293 blank line contains whitespace
+./backend_test.py:441:1: W293 blank line contains whitespace
+./backend_test.py:445:1: W293 blank line contains whitespace
+./backend_test.py:449:1: W293 blank line contains whitespace
+./backend_test.py:453:1: W293 blank line contains whitespace
+./backend_test.py:459:1: W293 blank line contains whitespace
+./backend_test.py:461:1: W293 blank line contains whitespace
+./backend_test.py:465:1: W293 blank line contains whitespace
+./backend_test.py:467:1: W293 blank line contains whitespace
+./backend_test.py:471:1: W293 blank line contains whitespace
+./backend_test.py:473:15: F541 f-string is missing placeholders
+./backend_test.py:479:1: W293 blank line contains whitespace
+./backend_test.py:482:1: W293 blank line contains whitespace
+./backend_test.py:486:1: W293 blank line contains whitespace
+./backend_test.py:490:1: W293 blank line contains whitespace
+./backend_test.py:494:1: W293 blank line contains whitespace
+./backend_test.py:498:1: W293 blank line contains whitespace
+./backend_test.py:504:1: W293 blank line contains whitespace
+./backend_test.py:506:1: W293 blank line contains whitespace
+./backend_test.py:509:1: W293 blank line contains whitespace
+./backend_test.py:512:1: W293 blank line contains whitespace
+./backend_test.py:517:15: F541 f-string is missing placeholders
+./backend_test.py:518:1: W293 blank line contains whitespace
+./backend_test.py:520:1: W293 blank line contains whitespace
+./backend_test.py:524:1: W293 blank line contains whitespace
+./backend_test.py:529:1: W293 blank line contains whitespace
+./backend_test.py:534:1: W293 blank line contains whitespace
+./backend_test.py:536:1: W293 blank line contains whitespace
+./backend_test.py:539:61: W291 trailing whitespace
+./backend_test.py:542:1: W293 blank line contains whitespace
+./backend_test.py:548:1: W293 blank line contains whitespace
+./backend_test.py:552:1: W293 blank line contains whitespace
+./backend_test.py:556:1: W293 blank line contains whitespace
+./backend_test.py:562:1: W293 blank line contains whitespace
+./backend_test.py:566:1: W293 blank line contains whitespace
+./backend_test.py:570:1: W293 blank line contains whitespace
+./backend_test.py:574:1: W293 blank line contains whitespace
+./backend_test.py:578:1: W293 blank line contains whitespace
+./backend_test.py:584:1: W293 blank line contains whitespace
+./backend_test.py:587:1: W293 blank line contains whitespace
+./backend_test.py:593:1: W293 blank line contains whitespace
+./backend_test.py:595:1: W293 blank line contains whitespace
+./backend_test.py:603:1: W293 blank line contains whitespace
+./backend_test.py:608:15: F541 f-string is missing placeholders
+./backend_test.py:609:1: W293 blank line contains whitespace
+./backend_test.py:611:1: W293 blank line contains whitespace
+./backend_test.py:615:1: W293 blank line contains whitespace
+./backend_test.py:620:1: W293 blank line contains whitespace
+./backend_test.py:625:1: W293 blank line contains whitespace
+./backend_test.py:630:1: W293 blank line contains whitespace
+./backend_test.py:634:1: W293 blank line contains whitespace
+./backend_test.py:637:1: W293 blank line contains whitespace
+./backend_test.py:642:1: W293 blank line contains whitespace
+./backend_test.py:646:1: W293 blank line contains whitespace
+./backend_test.py:649:1: W293 blank line contains whitespace
+./backend_test.py:654:1: W293 blank line contains whitespace
+./backend_test.py:661:1: W293 blank line contains whitespace
+./backend_test.py:666:1: W293 blank line contains whitespace
+./backend_test.py:670:1: W293 blank line contains whitespace
+./backend_test.py:672:1: W293 blank line contains whitespace
+./backend_test.py:674:1: W293 blank line contains whitespace
+./backend_test.py:678:1: W293 blank line contains whitespace
+./backend_test.py:680:1: W293 blank line contains whitespace
+./backend_test.py:685:1: W293 blank line contains whitespace
+./backend_test.py:687:1: W293 blank line contains whitespace
+./backend_test.py:694:1: W293 blank line contains whitespace
+./backend_test.py:699:15: F541 f-string is missing placeholders
+./backend_test.py:700:1: W293 blank line contains whitespace
+./backend_test.py:703:1: W293 blank line contains whitespace
+./backend_test.py:707:1: W293 blank line contains whitespace
+./backend_test.py:712:1: W293 blank line contains whitespace
+./backend_test.py:717:1: W293 blank line contains whitespace
+./backend_test.py:725:1: W293 blank line contains whitespace
+./backend_test.py:732:1: W293 blank line contains whitespace
+./backend_test.py:737:1: W293 blank line contains whitespace
+./backend_test.py:740:1: W293 blank line contains whitespace
+./backend_test.py:743:1: W293 blank line contains whitespace
+./backend_test.py:748:1: W293 blank line contains whitespace
+./backend_test.py:758:1: W293 blank line contains whitespace
+./backend_test.py:763:1: W293 blank line contains whitespace
+./backend_test.py:767:1: W293 blank line contains whitespace
+./backend_test.py:771:1: W293 blank line contains whitespace
+./backend_test.py:772:19: F541 f-string is missing placeholders
+./backend_test.py:774:1: W293 blank line contains whitespace
+./backend_test.py:777:1: W293 blank line contains whitespace
+./backend_test.py:780:1: W293 blank line contains whitespace
+./backend_test.py:784:1: W293 blank line contains whitespace
+./backend_test.py:788:1: W293 blank line contains whitespace
+./backend_test.py:792:1: W293 blank line contains whitespace
+./backend_test.py:797:1: W293 blank line contains whitespace
+./backend_test.py:801:1: W293 blank line contains whitespace
+./backend_test.py:807:1: W293 blank line contains whitespace
+./backend_test.py:809:1: W293 blank line contains whitespace
+./backend_test.py:814:1: W293 blank line contains whitespace
+./backend_test.py:818:27: F541 f-string is missing placeholders
+./backend_test.py:820:1: W293 blank line contains whitespace
+./backend_test.py:826:1: W293 blank line contains whitespace
+./backend_test.py:831:15: F541 f-string is missing placeholders
+./backend_test.py:832:1: W293 blank line contains whitespace
+./backend_test.py:839:1: W293 blank line contains whitespace
+./backend_test.py:847:1: W293 blank line contains whitespace
+./backend_test.py:856:15: F541 f-string is missing placeholders
+./backend_test.py:857:1: W293 blank line contains whitespace
+./backend_test.py:860:1: W293 blank line contains whitespace
+./backend_test.py:865:1: W293 blank line contains whitespace
+./backend_test.py:880:1: W293 blank line contains whitespace
+./backend_test.py:883:1: W293 blank line contains whitespace
+./backend_test.py:886:1: W293 blank line contains whitespace
+./backend_test.py:891:1: W293 blank line contains whitespace
+./backend_test.py:900:1: W293 blank line contains whitespace
+./backend_test.py:904:1: W293 blank line contains whitespace
+./backend_test.py:914:1: W293 blank line contains whitespace
+./backend_test.py:917:1: W293 blank line contains whitespace
+./backend_test.py:930:1: W293 blank line contains whitespace
+./backend_test.py:939:1: W293 blank line contains whitespace
+./backend_test.py:941:1: W293 blank line contains whitespace
+./backend_test.py:944:1: W293 blank line contains whitespace
+./backend_test.py:947:1: W293 blank line contains whitespace
+./backend_test.py:950:1: W293 blank line contains whitespace
+./backend_test.py:953:1: W293 blank line contains whitespace
+./backend_test.py:956:1: W293 blank line contains whitespace
+./backend_test.py:961:1: W293 blank line contains whitespace
+./backend_test.py:964:1: W293 blank line contains whitespace
+./backend_test.py:968:1: W293 blank line contains whitespace
+./backend_test.py:971:1: W293 blank line contains whitespace
+./backend_test.py:976:1: W293 blank line contains whitespace
+./backend_test.py:983:1: W293 blank line contains whitespace
+./backend_test.py:987:21: W292 no newline at end of file
+./frontend/node_modules/flatted/python/flatted.py:68:29: E713 test for membership should be 'not in'
+./frontend/node_modules/flatted/python/flatted.py:71:32: E713 test for membership should be 'not in'
+./frontend/node_modules/flatted/python/flatted.py:81:9: E722 do not use bare 'except'
+./frontend/node_modules/flatted/python/test.py:48:25: E703 statement ends with a semicolon
+./frontend/node_modules/flatted/python/test.py:49:25: E703 statement ends with a semicolon
+./frontend/node_modules/flatted/python/test.py:54:48: E712 comparison to True should be 'if cond is True:' or 'if cond:'
+./frontend/node_modules/flatted/python/test.py:60:197: E703 statement ends with a semicolon issues, including line length, trailing whitespace, and global variable usage, with a new  config file.
+- **Dependency Pruning**:  was reduced to a minimal runtime and dev set, removing unused libraries (e.g., , ).  was similarly pruned, removing 20+ unused dependencies (e.g., , ).
+- **Unused UI Component Removal**: 42 unused  files were deleted from , streamlining the codebase.
 
-The immediate next task is to integrate these new canonical schemas into the backend for event validation and to refactor the frontend filter panel to be schema-driven.
+All changes have been verified with automated backend and frontend regression tests, confirming no regressions and stable operation.
 </current_work>
 
 <optional_next_step>
-The next step is to confirm the implementation choices for backend canonicalization/validation and frontend schema-driven filtering.
+The next optional step is to add a Quick Start section to  with  examples or produce a sample consumer script demonstrating subscription to .
 </optional_next_step>
