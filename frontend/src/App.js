@@ -329,7 +329,9 @@ function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [buffer] = useState(() => new RingBuffer(10000));
   const [filters, setFilters] = useState({ gs: true, trade: true, god: true, rug: true, side: true });
-  const [regexStr, setRegexStr] = useState("");
+  const [regexStr, setRegexStr] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem("hud_presets") || "[]")[0]?.regex) || ""; } catch(_) { return ""; }
+  });
   const [regexValid, setRegexValid] = useState(true);
   const [lastEventIso, setLastEventIso] = useState(null);
 
