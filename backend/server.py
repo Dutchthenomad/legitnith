@@ -228,7 +228,7 @@ def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str
             break
         price = drift_price(price, prng, version)
         prices.append(price)
-        if price &gt; peak:
+        if price > peak:
             peak = price
 
     return {
@@ -285,7 +285,7 @@ async def run_prng_verification(game_id: str):
         if len(a) != len(b):
             return False
         for i in range(len(a)):
-            if abs(float(a[i]) - float(b[i])) &gt; eps:
+            if abs(float(a[i]) - float(b[i])) > eps:
                 return False
         return True
 
@@ -569,7 +569,7 @@ class RugsSocketService:
             q = stats.get("quality", {})
             if tick_count <= stats.get("last_tick", -1):
                 q["duplicateOrOutOfOrder"] = True
-            if (tick_count - stats.get("last_tick", 0)) &gt; 10:
+            if (tick_count - stats.get("last_tick", 0)) > 10:
                 q["largeGap"] = True
             if price <= 0:
                 q["priceNonPositive"] = True
@@ -577,7 +577,7 @@ class RugsSocketService:
             stats["quality"] = q
 
             # Update peak/ticks
-            if price &gt; stats["peak"]:
+            if price > stats["peak"]:
                 stats["peak"] = price
             stats["ticks"] = tick_count
 
@@ -610,13 +610,13 @@ class RugsSocketService:
             # ---- God Candle detection ----
             prev_price = None
             prices_arr = data.get("prices")
-            if isinstance(prices_arr, list) and len(prices_arr) &gt;= 2:
+            if isinstance(prices_arr, list) and len(prices_arr) >= 2:
                 prev_price = float(prices_arr[-2])
             else:
                 prev_price = float(stats.get("last_price") or price)
-            ratio = (price / prev_price) if prev_price and prev_price &gt; 0 else 1.0
+            ratio = (price / prev_price) if prev_price and prev_price > 0 else 1.0
             existing = await self.db.god_candles.count_documents({"gameId": game_id, "tickIndex": int(tick_count)})
-            is_god_candle = (ratio &gt;= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
+            is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
             if is_god_candle:
                 try:
                     under_cap = prev_price <= 100 * STARTING_PRICE
@@ -725,7 +725,7 @@ class RugsSocketService:
             return "RUG"
         if active and not rugged:
             return "ACTIVE"
-        if (not active) and cooldown and cooldown &gt; 0:
+        if (not active) and cooldown and cooldown > 0:
             return "COOLDOWN"
         if (not active) and (cooldown == 0) and allow_pre:
             return "PRE_ROUND"
