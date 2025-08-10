@@ -548,7 +548,7 @@ class RugsSocketService:
         server_seed_hash = provably_fair.get("serverSeedHash")
 
         # Broadcast minimal normalized frame to downstream
-        await broadcaster.broadcast({"type": "game_state_update", "gameId": game_id, "tick": tick_count, "price": price, "phase": phase, "ts": now_utc().isoformat()})
+        await broadcaster.broadcast({"schema": "v1", "type": "game_state_update", "gameId": game_id, "tick": tick_count, "price": price, "phase": phase, "ts": now_utc().isoformat()})
 
         # Detect new active game
         if data.get("active") and (self.current_game_id != game_id):
