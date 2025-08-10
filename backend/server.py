@@ -363,6 +363,42 @@ class Broadcaster:
                     dead.append(ws)
             for ws in dead:
                 self.connections.discard(ws)
+# -------------------- In-memory metrics (lightweight) --------------------
+class Metrics:
+    def __init__(self):
+        self.start_time = time.time()
+        self.total_messages = 0
+        self.total_trades = 0
+        self.total_games_seen: Set[str] = set()
+        self.error_counts: Dict[str, int] = {}
+        self.msg_times = deque(maxlen=600)  # last ~10 minutes at 1s buckets
+        self.last_event_at: Optional[datetime] = None
+
+    def incr_message(self):
+        self.total_messages += 1
+        now_s = int(time.time())
+        self.msg_times.append(now_s)
+        self.last_event_at = now_utc()
+
+    def incr_trade(self):
+        self.total_trades += 1
+
+    def add_game(self, gid: Optional[str]):
+        if gid:
+            self.total_games_seen.add(gid)
+
+    def incr_error(self, key: str):
+        self.error_counts[key] = self.error_counts.get(key, 0) + 1
+
+    def msgs_per_sec_window(self, window_seconds: int = 60) -> float:
+        if not self.msg_times:
+            return 0.0
+        now_s = int(time.time())
+        count = sum(1 for t in self.msg_times if now_s - t < window_seconds)
+        return count / float(window_seconds)
+
+metrics = Metrics()
+
 
 broadcaster = Broadcaster()
 
