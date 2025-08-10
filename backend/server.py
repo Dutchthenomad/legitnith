@@ -682,7 +682,7 @@ class RugsSocketService:
         try:
             doc = {"_id": str(uuid.uuid4()), "eventId": str(trade.get("id")), "gameId": trade.get("gameId"), "playerId": trade.get("playerId"), "type": trade.get("type"), "qty": trade.get("qty"), "tickIndex": trade.get("tickIndex"), "coin": trade.get("coin"), "amount": trade.get("amount"), "price": trade.get("price"), "createdAt": now_utc()}
             await self.db.trades.insert_one(doc)
-            await broadcaster.broadcast({"type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({"schema": "v1", "type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
             metrics.incr_error("trade_insert")
