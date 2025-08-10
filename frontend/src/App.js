@@ -178,6 +178,65 @@ function App() {
       setTimeout(() => setVerifying(false), 500);
     }
   };
+  // WS stream subscription for HUD filter panel
+  useEffect(() => {
+    if (!HUD_FEATURES_ENABLED) return;
+    const url = `${BACKEND_URL}/api/ws/stream`;
+    let ws;
+    try {
+      ws = new WebSocket(url.replace(/^http/, "ws"));
+    } catch (e) {
+      // ignore
+    }
+    if (!ws) return;
+
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (_) { return; }
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type === "heartbeat" || msg.type === "hello") return;
+      buffer.push(msg);
+      if (msg.ts) setLastEventIso(msg.ts);
+    };
+
+    return () => {
+      try { ws.close(); } catch (_) {}
+    };
+  }, [buffer]);
+
+  const filtered = useMemo(() => {
+    if (!HUD_FEATURES_ENABLED) return [];
+    let arr = buffer.toArray();
+    // type filters
+    arr = arr.filter((m) => {
+      if (m.type === "game_state_update") return filters.gs;
+      if (m.type === "trade") return filters.trade;
+      if (m.type === "god_candle") return filters.god;
+      if (m.type === "rug") return filters.rug;
+      if (m.type === "side_bet") return filters.side;
+      return false;
+    });
+    // regex
+    if (regexStr) {
+      try {
+        const r = new RegExp(regexStr, "i");
+        arr = arr.filter((m) => r.test(JSON.stringify(m)));
+        if (!regexValid) setRegexValid(true);
+      } catch (e) {
+        if (regexValid) setRegexValid(false);
+      }
+    } else {
+      if (!regexValid) setRegexValid(true);
+    }
+    return arr.slice(-5000); // safety cap for rendering
+  }, [buffer, filters, regexStr, regexValid]);
+
+  const bufferDepth = buffer.size;
+  const suppressed = buffer.suppressed;
+
 
   return (
     <div className="min-h-screen">
