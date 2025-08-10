@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict, Set, Tuple
+from typing import List, Optional, Any, Dict, Set, Tuple, Callable
 from collections import deque
 import uuid
 import time
