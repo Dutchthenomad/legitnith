@@ -584,7 +584,7 @@ function App() {
     return (
       <div className="hud-card p-3">
         <div className="text-xs mb-2 text-muted-foreground">Peak Multiplier Sparkline</div>
-        <svg width={w} height={h}>
+        <svg width={w} height={h} style={{ maxWidth: "100%", display: "block" }}>
           <polyline points={pts.join(" ")} fill="none" stroke="#ef7104" strokeWidth="2" />
         </svg>
       </div>
