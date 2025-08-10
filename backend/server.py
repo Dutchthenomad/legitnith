@@ -228,6 +228,7 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 async def ensure_indexes():
+    """Ensure all collection indexes exist for performance and data integrity."""
     # Observability snapshots: 10d TTL
     await db.game_state_snapshots.create_index([("gameId", 1), ("tickCount", -1)])
     await db.game_state_snapshots.create_index([("createdAt", -1)])
