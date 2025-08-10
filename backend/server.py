@@ -805,7 +805,7 @@ class RugsSocketService:
         if data.get("active") and (self.current_game_id != game_id):
             self.current_game_id = game_id
             metrics.add_game(game_id)
-            self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
+            self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}, "last_seen_ts": time.time()}
 
             await self.db.meta.update_one({"key": "current_game_id"}, {"$set": {"key": "current_game_id", "value": game_id, "updatedAt": now_utc()}}, upsert=True)
 
