@@ -121,6 +121,18 @@
         comment: "✅ PASSED - Endpoint returns 200 JSON with all required fields: serviceUptimeSec (106), currentSocketConnected (true), socketId (TlZYBGh9v_U-E3teBGom), lastEventAt (ISO string), totalMessagesProcessed (745->767), totalTrades (177->179), totalGamesTracked (2), messagesPerSecond1m (7.833), messagesPerSecond5m (2.0), wsSubscribers (0), errorCounters ({}). All field types valid, counters monotonic non-decreasing, respects /api prefix, uses environment variable URL."
 
 ## frontend:
+  - task: "Schema validation + /api/schemas + metrics.schemaValidation"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Integrated fastjsonschema-backed SchemaRegistry loading docs/ws-schema/*.json; validating inbound events in warn mode and tagging records; added GET /api/schemas; extended GET /api/metrics with schemaValidation counters; WS broadcasts now include validation summary."
+
   - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
     implemented: false
     working: "NA"
