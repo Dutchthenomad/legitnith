@@ -328,7 +328,9 @@ const MessageList = ({ items }) => {
 function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [buffer] = useState(() => new RingBuffer(10000));
-  const [filters, setFilters] = useState({ gs: true, trade: true, god: true, rug: true, side: true });
+  const [filters, setFilters] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem("hud_presets") || "[]")[0]?.filters) || { gs: true, trade: true, god: true, rug: true, side: true }; } catch(_) { return { gs: true, trade: true, god: true, rug: true, side: true }; }
+  });
   const [regexStr, setRegexStr] = useState(() => {
     try { return (JSON.parse(localStorage.getItem("hud_presets") || "[]")[0]?.regex) || ""; } catch(_) { return ""; }
   });
