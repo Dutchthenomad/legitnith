@@ -136,6 +136,9 @@
       - working: true
         agent: "testing"
         comment: "✅ PASSED - /api/schemas returns all required schemas with descriptors; /api/metrics includes schemaValidation with non-decreasing counters (observed total 786->811); WS /api/ws/stream messages include validation.ok and validation.schema for game_state_update and trade events. All routes respect /api prefix and environment constraints."
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - GET /api/schemas returns 200 with all 7 schemas including required ones (gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate). Each schema has correct structure with key, id, title, required (array), properties (object), and outboundType. No /api route regressions detected - endpoint maintains full functionality after P2 changes."
 
 ## frontend:
   - task: "Schema validation + /api/schemas + metrics.schemaValidation"
