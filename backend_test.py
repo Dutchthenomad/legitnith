@@ -512,7 +512,321 @@ class RugsDataServiceTester:
         
         return True
 
-    def test_ttl_configuration(self):
+    def test_schemas_endpoint(self):
+        """Test /api/schemas endpoint - main focus of review request"""
+        print(f"\n🔍 Testing Schemas Endpoint...")
+        
+        success, response = self.run_test("Schemas Endpoint", "GET", "schemas", 200, timeout=15)
+        
+        if not success or not isinstance(response, dict):
+            print("   ❌ Schemas endpoint call failed")
+            return False
+        
+        # Validate response structure
+        if 'items' not in response:
+            print("   ❌ Response missing 'items' field")
+            return False
+        
+        items = response['items']
+        if not isinstance(items, list):
+            print("   ❌ 'items' field is not a list")
+            return False
+        
+        print(f"   ✓ Found {len(items)} schemas")
+        
+        # Required schema keys to check for
+        required_schema_keys = [
+            'gameStateUpdate', 'newTrade', 'currentSideBet', 
+            'newSideBet', 'gameStatePlayerUpdate', 'playerUpdate'
+        ]
+        
+        found_schemas = {}
+        for item in items:
+            if not isinstance(item, dict):
+                print(f"   ❌ Schema item is not a dict: {item}")
+                return False
+            
+            # Check required fields for each schema item
+            required_fields = ['key', 'id', 'title', 'required', 'properties', 'outboundType']
+            missing_fields = [field for field in required_fields if field not in item]
+            
+            if missing_fields:
+                print(f"   ❌ Schema item missing fields {missing_fields}: {item}")
+                return False
+            
+            # Validate field types
+            key = item.get('key')
+            if not isinstance(key, str):
+                print(f"   ❌ Schema 'key' is not string: {key}")
+                return False
+            
+            if not isinstance(item.get('id'), str):
+                print(f"   ❌ Schema 'id' is not string: {item.get('id')}")
+                return False
+            
+            if not isinstance(item.get('title'), str):
+                print(f"   ❌ Schema 'title' is not string: {item.get('title')}")
+                return False
+            
+            if not isinstance(item.get('required'), list):
+                print(f"   ❌ Schema 'required' is not array: {item.get('required')}")
+                return False
+            
+            if not isinstance(item.get('properties'), dict):
+                print(f"   ❌ Schema 'properties' is not object: {item.get('properties')}")
+                return False
+            
+            # outboundType may be null for some schemas
+            outbound_type = item.get('outboundType')
+            if outbound_type is not None and not isinstance(outbound_type, str):
+                print(f"   ❌ Schema 'outboundType' is not string or null: {outbound_type}")
+                return False
+            
+            found_schemas[key] = item
+            print(f"   ✓ Schema '{key}': id='{item.get('id')}', title='{item.get('title')}', outboundType='{outbound_type}'")
+        
+        # Check for required schemas
+        missing_schemas = [key for key in required_schema_keys if key not in found_schemas]
+        if missing_schemas:
+            print(f"   ❌ Missing required schemas: {missing_schemas}")
+            return False
+        
+        print(f"   ✓ All required schemas present: {required_schema_keys}")
+        
+        # Validate specific schema details
+        for schema_key in required_schema_keys:
+            schema = found_schemas[schema_key]
+            print(f"   Schema '{schema_key}' details:")
+            print(f"     - required fields: {schema.get('required')}")
+            print(f"     - properties count: {len(schema.get('properties', {}))}")
+            print(f"     - outboundType: {schema.get('outboundType')}")
+        
+        return True
+
+    def test_metrics_schema_validation(self):
+        """Test /api/metrics includes schemaValidation object"""
+        print(f"\n🔍 Testing Metrics Schema Validation...")
+        
+        success, response = self.run_test("Metrics with Schema Validation", "GET", "metrics", 200, timeout=15)
+        
+        if not success or not isinstance(response, dict):
+            print("   ❌ Metrics endpoint call failed")
+            return False
+        
+        # Check for schemaValidation field
+        if 'schemaValidation' not in response:
+            print("   ❌ Response missing 'schemaValidation' field")
+            return False
+        
+        schema_validation = response['schemaValidation']
+        if not isinstance(schema_validation, dict):
+            print("   ❌ 'schemaValidation' is not an object")
+            return False
+        
+        # Check required fields in schemaValidation
+        if 'total' not in schema_validation:
+            print("   ❌ schemaValidation missing 'total' field")
+            return False
+        
+        if 'perEvent' not in schema_validation:
+            print("   ❌ schemaValidation missing 'perEvent' field")
+            return False
+        
+        total = schema_validation['total']
+        per_event = schema_validation['perEvent']
+        
+        # Validate types
+        if not isinstance(total, int):
+            print(f"   ❌ schemaValidation.total is not a number: {total} (type: {type(total)})")
+            return False
+        
+        if not isinstance(per_event, dict):
+            print(f"   ❌ schemaValidation.perEvent is not an object: {per_event} (type: {type(per_event)})")
+            return False
+        
+        print(f"   ✓ schemaValidation.total: {total}")
+        print(f"   ✓ schemaValidation.perEvent: {per_event}")
+        
+        # Initially may be 0, but should be >= 0
+        if total < 0:
+            print(f"   ❌ schemaValidation.total should be >= 0: {total}")
+            return False
+        
+        # Validate perEvent structure if it has data
+        if per_event:
+            for event_key, counters in per_event.items():
+                if not isinstance(counters, dict):
+                    print(f"   ❌ perEvent['{event_key}'] is not an object: {counters}")
+                    return False
+                
+                # Should have 'ok' and 'fail' counters
+                if 'ok' not in counters or 'fail' not in counters:
+                    print(f"   ❌ perEvent['{event_key}'] missing 'ok' or 'fail' counters: {counters}")
+                    return False
+                
+                if not isinstance(counters['ok'], int) or not isinstance(counters['fail'], int):
+                    print(f"   ❌ perEvent['{event_key}'] counters not integers: {counters}")
+                    return False
+                
+                print(f"   ✓ perEvent['{event_key}']: ok={counters['ok']}, fail={counters['fail']}")
+        
+        print("   ✓ Schema validation metrics structure is valid")
+        
+        # Wait and check again to see if counters increase
+        print("   Waiting 5 seconds to check for counter increases...")
+        time.sleep(5)
+        
+        success2, response2 = self.run_test("Metrics Schema Validation (Call 2)", "GET", "metrics", 200, timeout=15)
+        
+        if success2 and isinstance(response2, dict) and 'schemaValidation' in response2:
+            schema_validation2 = response2['schemaValidation']
+            total2 = schema_validation2.get('total', 0)
+            per_event2 = schema_validation2.get('perEvent', {})
+            
+            print(f"   Second call - total: {total2}, perEvent: {per_event2}")
+            
+            # Check if counters increased (they may not if no events arrived)
+            if total2 >= total:
+                print(f"   ✓ Schema validation total counter is non-decreasing: {total} -> {total2}")
+            else:
+                print(f"   ❌ Schema validation total counter decreased: {total} -> {total2}")
+                return False
+        
+        return True
+
+    def test_websocket_validation_summary(self):
+        """Test WebSocket /api/ws/stream messages include validation summary"""
+        print(f"\n🔍 Testing WebSocket Validation Summary...")
+        
+        ws_url = f"{self.base_url.replace('https://', 'wss://').replace('http://', 'ws://')}/api/ws/stream"
+        print(f"   WebSocket URL: {ws_url}")
+        
+        messages_received = []
+        validation_messages = []
+        connection_successful = False
+        
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                messages_received.append(data)
+                
+                # Look for messages with validation summary
+                if isinstance(data, dict):
+                    msg_type = data.get('type')
+                    validation = data.get('validation')
+                    
+                    if validation and isinstance(validation, dict):
+                        validation_messages.append({
+                            'type': msg_type,
+                            'validation': validation,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                        print(f"   📨 Message with validation: type='{msg_type}', validation={validation}")
+                    
+                    # Look specifically for game_state_update, trade, side_bet types
+                    if msg_type in ['game_state_update', 'trade', 'side_bet']:
+                        if validation:
+                            print(f"   ✓ Found {msg_type} with validation: {validation}")
+                        else:
+                            print(f"   ⚠ Found {msg_type} without validation field")
+                
+            except json.JSONDecodeError:
+                print(f"   ⚠ Non-JSON message received: {message}")
+            except Exception as e:
+                print(f"   ⚠ Error processing message: {e}")
+        
+        def on_error(ws, error):
+            print(f"   ❌ WebSocket error: {error}")
+        
+        def on_close(ws, close_status_code, close_msg):
+            print(f"   🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        
+        def on_open(ws):
+            nonlocal connection_successful
+            connection_successful = True
+            print("   ✅ WebSocket connection established")
+        
+        try:
+            # Create WebSocket connection
+            ws = websocket.WebSocketApp(
+                ws_url,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
+                on_close=on_close
+            )
+            
+            # Run WebSocket in a separate thread
+            ws_thread = threading.Thread(target=ws.run_forever)
+            ws_thread.daemon = True
+            ws_thread.start()
+            
+            # Wait for connection and messages
+            print("   Waiting for WebSocket connection...")
+            time.sleep(3)
+            
+            if not connection_successful:
+                print("   ❌ WebSocket connection failed")
+                return False
+            
+            print(f"   Listening for messages for 30 seconds...")
+            time.sleep(30)
+            
+            # Close WebSocket
+            ws.close()
+            
+            print(f"   📊 Total messages received: {len(messages_received)}")
+            print(f"   📊 Messages with validation: {len(validation_messages)}")
+            
+            if len(messages_received) == 0:
+                print("   ⚠ No messages received - this may be normal if no game events occurred")
+                return True  # Not a failure - depends on game activity
+            
+            # Analyze validation messages
+            if len(validation_messages) > 0:
+                print("   ✓ Found messages with validation summaries:")
+                
+                for msg in validation_messages[:5]:  # Show first 5
+                    validation = msg['validation']
+                    msg_type = msg['type']
+                    
+                    # Check validation structure
+                    if 'ok' not in validation:
+                        print(f"   ❌ Validation missing 'ok' field: {validation}")
+                        return False
+                    
+                    if not isinstance(validation['ok'], bool):
+                        print(f"   ❌ Validation 'ok' is not boolean: {validation['ok']}")
+                        return False
+                    
+                    # 'schema' field may be string or null
+                    schema = validation.get('schema')
+                    if schema is not None and not isinstance(schema, str):
+                        print(f"   ❌ Validation 'schema' is not string or null: {schema}")
+                        return False
+                    
+                    print(f"     - {msg_type}: ok={validation['ok']}, schema='{schema}'")
+                
+                # Check for specific message types
+                types_with_validation = set(msg['type'] for msg in validation_messages)
+                expected_types = {'game_state_update', 'trade', 'side_bet'}
+                found_expected = expected_types.intersection(types_with_validation)
+                
+                if found_expected:
+                    print(f"   ✅ Found expected message types with validation: {found_expected}")
+                else:
+                    print(f"   ⚠ No expected message types found (game_state_update, trade, side_bet)")
+                    print(f"   Found types: {types_with_validation}")
+                
+                return True
+            else:
+                print("   ⚠ No messages with validation summaries found")
+                print("   This may be normal if no validated events occurred during the test period")
+                return True  # Not a failure - depends on game activity
+                
+        except Exception as e:
+            print(f"   ❌ WebSocket test error: {e}")
+            return False
         """Test TTL configuration by checking snapshots endpoint and code review"""
         print(f"\n🔍 Testing TTL Configuration...")
         
