@@ -168,6 +168,26 @@ function App() {
   };
 
   const verifyNow = async () => {
+  const onPresetSave = () => {
+    try {
+      const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
+      const entry = { f: filters, r: regexStr };
+      const next = [entry, ...presets].slice(0, 5);
+      localStorage.setItem("hud_presets", JSON.stringify(next));
+    } catch (_) {}
+  };
+
+  const onPresetApply = (idx) => {
+    try {
+      const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
+      const p = presets[idx];
+      if (p) {
+        setFilters(p.f || filters);
+        setRegexStr(p.r || "");
+      }
+    } catch (_) {}
+  };
+
     if (!currentGame?.id) return;
     setVerifying(true);
     try {
