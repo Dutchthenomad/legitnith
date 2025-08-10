@@ -8,7 +8,7 @@ Collections & Indexes
   - Indexes: (gameId, tickCount), createdAt (TTL 10d)
 - trades
   - Fields: _id (uuid), eventId, gameId, playerId, type, qty, tickIndex, coin, amount, price, validation?, createdAt
-  - Indexes: (gameId, tickIndex)
+  - Indexes: (gameId, tickIndex), eventId (unique for idempotency)
 - games
   - Fields: id, phase, version, serverSeedHash, lastSeenAt, startTime, endTime, rugTick, endPrice, peakMultiplier, totalTicks, hasGodCandle, prngVerified, prngVerificationData, quality, history, createdAt, updatedAt
   - Indexes: id (unique), phase, hasGodCandle, prngVerified, startTime, endTime, rugTick, endPrice, peakMultiplier, totalTicks
