@@ -206,7 +206,18 @@ const FilterToolbar = ({
   setRules,
 }) => {
   const addRule = () => {
-    setRules((r) => (r.length >= 5 ? r : [...r, { event: "gameStateUpdate", field: "gameId", op: "eq", val: "" }]));
+    setRules((r) => {
+      if (r.length >= 5) return r;
+      const defaultEvent = (schemaItems && schemaItems.length > 0)
+        ? (schemaItems.find((it) => it.key === "gameStateUpdate")?.key || schemaItems[0].key)
+        : "gameStateUpdate";
+      const fields = (() => {
+        const it = (schemaItems || []).find((i) => i.key === defaultEvent);
+        return it && it.properties ? Object.keys(it.properties) : [];
+      })();
+      const defaultField = fields.includes("gameId") ? "gameId" : (fields[0] || "");
+      return [...r, { event: defaultEvent, field: defaultField, op: "eq", val: "" }];
+    });
   };
   const removeRule = (idx) => {
     setRules((r) => r.filter((_, i) => i !== idx));
