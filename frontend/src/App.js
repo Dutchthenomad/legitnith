@@ -550,14 +550,14 @@ function App() {
         <div className="text-xs mb-2 text-muted-foreground">Duration Histogram (ticks)</div>
         <div style={{ width: "100%", overflow: "hidden" }}>
           <svg width={w} height={h} style={{ maxWidth: "100%", display: "block" }}>
-          {counts.map((c, i) => {
-            const bh = (c / maxCount) * (h - 20);
-            return (
-              <rect key={i} x={pad + i * barW + 1} y={h - bh - 10} width={barW - 2} height={bh} fill="#ffc700" />
-            );
-          })}
-        </svg>
-      </div>
+            {counts.map((c, i) => {
+              const bh = (c / maxCount) * (h - 20);
+              return (
+                <rect key={i} x={pad + i * barW + 1} y={h - bh - 10} width={barW - 2} height={bh} fill="#ffc700" />
+              );
+            })}
+          </svg>
+        </div>
     );
   };
 
