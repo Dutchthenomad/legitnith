@@ -1388,35 +1388,24 @@ class RugsDataServiceTester:
             return False
 
 def main():
-    print("🚀 Starting Backend Regression Test - P2 Changes")
-    print("Focus: P2 changes - lastErrorAt, wsSlowClientDrops, dbPingMs, memory pruning, idempotency")
+    print("🚀 Starting Backend Smoke Test - Side Bet Normalized Fields & Metrics Shape")
+    print("Focus: WebSocket side_bet normalized fields + /api/metrics shape verification")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run P2 regression tests as specified in review request
+    # Run specific smoke tests as requested in review
     results = []
     
-    # P2 Test 1: GET /api/metrics now includes lastErrorAt, wsSlowClientDrops, dbPingMs without breaking previous fields
-    results.append(("P2: GET /api/metrics -> includes lastErrorAt, wsSlowClientDrops, dbPingMs", tester.test_metrics_endpoint()))
+    # Test 1: /api/metrics endpoint shape remains intact
+    results.append(("Smoke: /api/metrics shape intact", tester.test_metrics_endpoint()))
     
-    # P2 Test 2: GET /api/readiness returns dbPingMs and updates dbPingMs in metrics after call
-    results.append(("P2: GET /api/readiness -> returns dbPingMs and updates metrics", tester.test_readiness_endpoint()))
-    
-    # P2 Test 3: Memory pruning injected at startup doesn't crash (test basic endpoints work)
-    results.append(("P2: Memory pruning doesn't crash -> basic endpoints work", tester.test_health()))
-    
-    # P2 Test 4: Ensure unique index on trades.eventId remains and idempotency path still works
-    results.append(("P2: Trades idempotency -> unique index and duplicate prevention", tester.test_trades_idempotency()))
-    
-    # P2 Test 5: Verify no /api route regressions - test key endpoints
-    results.append(("P2: No /api route regressions -> schemas endpoint", tester.test_schemas_endpoint()))
-    results.append(("P2: No /api route regressions -> WebSocket connection", tester.test_websocket_regression()))
-    results.append(("P2: No /api route regressions -> database indexes", tester.test_ensure_indexes()))
+    # Test 2: WebSocket /api/ws/stream side_bet messages include normalized fields
+    results.append(("Smoke: WebSocket side_bet normalized fields", tester.test_websocket_side_bet_normalized_fields()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 P2 BACKEND REGRESSION TEST SUMMARY")
+    print("📊 BACKEND SMOKE TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -1426,25 +1415,22 @@ def main():
         status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status} {test_name}")
     
-    print(f"\nOverall: {passed_tests}/{total_tests} P2 regression tests passed")
+    print(f"\nOverall: {passed_tests}/{total_tests} smoke tests passed")
     print(f"Individual API calls: {tester.tests_passed}/{tester.tests_run} passed")
     
-    # Specific findings for P2 regression
+    # Specific findings for smoke test
     print("\n" + "=" * 70)
-    print("🎯 P2 BACKEND REGRESSION RESULTS")
+    print("🎯 BACKEND SMOKE TEST RESULTS")
     print("=" * 70)
     
     if passed_tests == total_tests:
-        print("✅ ALL P2 BACKEND REGRESSION TESTS PASSED")
-        print("All P2 changes are working correctly:")
-        print("  - GET /api/metrics includes lastErrorAt, wsSlowClientDrops, dbPingMs")
-        print("  - GET /api/readiness returns dbPingMs and updates metrics")
-        print("  - Memory pruning at startup doesn't crash the service")
-        print("  - Trades unique index on eventId remains and idempotency works")
-        print("  - No /api route regressions detected")
+        print("✅ ALL BACKEND SMOKE TESTS PASSED")
+        print("Verification complete:")
+        print("  - /api/metrics endpoint shape remains intact after changes")
+        print("  - WebSocket side_bet messages include normalized fields (or no side_bets occurred)")
     else:
-        print("❌ SOME P2 BACKEND REGRESSION TESTS FAILED")
-        print("P2 changes may have introduced issues that need attention")
+        print("❌ SOME BACKEND SMOKE TESTS FAILED")
+        print("Issues detected that need attention")
         failed_tests = [name for name, passed in results if not passed]
         print(f"Failed tests: {failed_tests}")
     
