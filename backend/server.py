@@ -1132,6 +1132,18 @@ async def game_by_id(game_id: str):
             g[dkey] = g[dkey].isoformat()
     return g
 
+
+@api_router.get("/readiness")
+async def readiness():
+    db_ok = False
+    try:
+        await db.command({"ping": 1})
+        db_ok = True
+    except Exception as e:
+        logger.warning(f"Mongo ping failed: {e}")
+    upstream_ok = bool(auth_svc and auth_svc.connected)
+    return {"dbOk": db_ok, "upstreamConnected": upstream_ok, "time": now_utc().isoformat()}
+
 @api_router.get("/games/{game_id}/quality")
 async def game_quality(game_id: str):
     g = await db.games.find_one({"id": game_id}, {"quality": 1, "_id": 0})
