@@ -22,7 +22,10 @@ Quick Start
   - Metrics: curl "$BACKEND_URL/api/metrics"
   - Games: curl "$BACKEND_URL/api/games?limit=5"
 - WebSocket (Node)
-  - See sample below; ensure BACKEND_URL is set and replace http(s) with ws(s)
+  - Example:
+    const url = process.env.BACKEND_URL.replace(/^http/, 'ws') + '/api/ws/stream';
+    const ws = new (require('ws'))(url);
+    ws.on('message', (d) => console.log(d.toString()));
 
 Notes
 - Canonical event schemas: docs/ws-schema/*.json
