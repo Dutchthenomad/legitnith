@@ -445,6 +445,7 @@ class RugsSocketService:
 
         @self.sio.on('gameStateUpdate')
         async def on_game_state(data):
+            metrics.incr_message()
             await self._handle_game_state_update(data)
 
         @self.sio.on('standard/newTrade')
