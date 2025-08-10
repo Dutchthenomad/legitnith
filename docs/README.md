@@ -15,6 +15,16 @@ Contents
 - Data Quality & PRNG
   - QUALITY.md – Quality flags, God Candles, and PRNG verification
 
-References
+Quick Start
+- REST (set BACKEND_URL env to your service URL)
+  - Health: curl "$BACKEND_URL/api/health"
+  - Readiness: curl "$BACKEND_URL/api/readiness"
+  - Metrics: curl "$BACKEND_URL/api/metrics"
+  - Games: curl "$BACKEND_URL/api/games?limit=5"
+- WebSocket (Node)
+  - See sample below; ensure BACKEND_URL is set and replace http(s) with ws(s)
+
+Notes
 - Canonical event schemas: docs/ws-schema/*.json
-- GRAD_STUDY: see docs/GRAD_STUDY for research background and constraints to follow
+- Ingress requires all backend routes to be prefixed with /api
+- This service is a data layer only; consumer apps should subscribe to /api/ws/stream
