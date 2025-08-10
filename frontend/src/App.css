@@ -36,3 +36,35 @@ body { background: var(--rugs-bg); color: var(--rugs-fg); }
 .kv-val { font-size: 13px; font-weight: 600; }
 
 .tabs-bg { background: var(--rugs-muted); border: 1px solid var(--rugs-border); border-radius: 10px; }
+
+/* High-contrast inputs/selects for Filter Toolbar */
+.hud-card select,
+.hud-card input[type="text"],
+.hud-card input[type="search"],
+.hud-card input[type="number"] {
+  background-color: #272935 !important; /* var(--rugs-muted) */
+  color: var(--rugs-fg) !important;
+  border: 1px solid var(--rugs-border) !important;
+  border-radius: 8px;
+  outline: none;
+}
+.hud-card select:focus,
+.hud-card input[type="text"]:focus,
+.hud-card input[type="search"]:focus,
+.hud-card input[type="number"]:focus {
+  border-color: var(--rugs-primary) !important;
+  box-shadow: 0 0 0 2px rgba(255, 199, 0, 0.25);
+}
+.hud-card select option {
+  background-color: #1e202a; /* var(--rugs-card) */
+  color: var(--rugs-fg);
+}
+.hud-card ::placeholder {
+  color: var(--rugs-muted-fg);
+}
+
+/* Buttons inside toolbar for clarity */
+.hud-card .btn-primary,
+.hud-card button {
+  border-radius: 8px;
+}

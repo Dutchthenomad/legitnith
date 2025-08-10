@@ -1,0 +1,84 @@
+<analysis>
+The AI engineer successfully established an iterative development process, building a Rugs.fun Data Service MVP with live data ingestion, MongoDB persistence, and a basic React HUD. Initial work focused on robust data capture (game states, trades, God Candles, PRNG, OHLC, side bets) and exposed via REST/WebSocket APIs. A key pivot, suggested by the user, refined the scope to a single-responsibility data service, deferring complex visualizations.
+
+The current session began with reviewing a comprehensive plan from the user, detailing subsequent phases for metrics, refined UI aids (filter panel, SVG charts), documentation, and hardening. Phase 1, implementing a  endpoint on the backend, was completed and tested successfully. Phase 2 and 3, involving extensive frontend HUD updates (health strip, ring buffer-based message filter, virtualized list, and SVG charts), were also implemented, though some frontend linting errors and test timeouts were noted. The latest development introduced a critical change: the user provided canonical JSON schemas for all event types, directing the AI to refactor the backend for schema-based validation and the frontend filter panel to be schema-driven rather than using free-form regex. The AI is currently awaiting user confirmation on the implementation details for this schema integration.
+</analysis>
+
+<product_requirements>
+The core objective is to create a production-ready Data Service for Rugs.fun, serving as the definitive source of truth for all game data. This service connects to the Rugs.fun WebSocket backend, processes real-time data, persists it in MongoDB, and exposes it via REST/WebSocket API. Rugs.fun is a Solana-based gambling game featuring a multiplier that can rug (crash to zero), with specific mechanics like God candles (10x multiplier jump) and sideBets (rug within 50 ticks). The service must use real-time data only, without simulations. The scope was refined to a robust, single-responsibility data service, deferring heavy analytics and visualization to a separate consumer application. Data must be enterprise-grade and validated for future analyses, accompanied by comprehensive documentation. Recent additions include requirements for a  endpoint, a refined developer HUD with a message filter panel (using a ring buffer and virtualized list), minimal SVG charts for game duration and peak multiplier, and, most recently, the integration of canonical JSON schemas for event validation and schema-driven filtering.
+</product_requirements>
+
+<key_technical_concepts>
+-   **FastAPI**: Python framework for backend REST APIs and WebSockets.
+-   **React**: JavaScript library for frontend UI development.
+-   **MongoDB**: NoSQL database for flexible data persistence, utilizing TTL indexes.
+-   **Socket.io (Client)**: For real-time WebSocket connection to the game.
+-   **Tailwind CSS & shadcn/ui**: For styling and UI components.
+-   **PRNG Verification**: Algorithm for provably fair game outcome validation.
+-   **WebSockets (FastAPI)**: For broadcasting normalized data downstream.
+-   **react-window**: For virtualized list rendering in the frontend.
+-   **JSON Schema**: For defining and validating canonical event structures (new).
+</key_technical_concepts>
+
+<code_architecture>
+
+
+-   ****:
+    -   **Summary**: Central FastAPI application handling real-time data ingestion from Rugs.fun WebSocket, data cleaning, normalization, persistence to MongoDB, and exposing REST/WebSocket APIs.
+    -   **Changes Made**:
+        -   Implemented  for various game events.
+        -   Added REST API endpoints for , , , ,  (including , , ), , , , , .
+        -   Implemented a downstream WebSocket endpoint () to broadcast normalized game events.
+        -   **Recent Change**: Added  endpoint to expose in-memory operational statistics like , , , , and .
+        -   **Recent Change**: Modified WebSocket broadcast messages to include a  field for versioning.
+
+-   ****:
+    -   **Summary**: Specifies Python dependencies for the FastAPI backend.
+    -   **Changes Made**: Originally added  and . No new dependencies added in the latest phase, but  (or ) is proposed for future canonicalization.
+
+-   ****:
+    -   **Summary**: Main React component rendering the developer HUD, fetching data from backend APIs and displaying it.
+    -   **Changes Made**:
+        -   Initial HUD implementation with  for basic data display and PRNG chip.
+        -   **Recent Change**: Integrated  for fetching metrics and other data.
+        -   **Recent Change**: Implemented a Health strip displaying WebSocket status, message rates, and buffer depth.
+        -   **Recent Change**: Added a live message filter panel utilizing a ring buffer, type toggles, a regex filter with presets, and a virtualized list using  for performance.
+        -   **Recent Change**: Incorporated a Diagnostics tab with minimal SVG charts for game duration and peak multiplier.
+
+-   ****:
+    -   **Summary**: Contains CSS styles for the React application, particularly for the HUD.
+    -   **Changes Made**: Applied styling for glassmorphism effects, custom  font, and specific color variables. Likely updated to support the new HUD elements and layout.
+
+-   ****:
+    -   **Summary**: Node.js dependencies and scripts for the React frontend.
+    -   **Changes Made**: Added  and  dependencies to support virtualized lists and polling hooks respectively.
+
+-   ****:
+    -   **Summary**: New directory for project documentation.
+    -   **Changes Made**: Created  as an index. Contains a  sub-directory for research documents.
+    -   **Recent Addition**: Created  containing canonical JSON schemas for various event types (, , , , , , ). These schemas will be crucial for future data validation and frontend filtering logic.
+
+</code_architecture>
+
+<pending_tasks>
+-   **Backend Canonicalization & Validation**: Refactor backend to broadcast canonical messages validated against provided JSON schemas, incorporating a  dependency.
+-   **Frontend HUD Refactor**: Revise the message filter panel to be schema-driven, replacing or augmenting the current regex-based filtering, and store fielded filter presets.
+-   **Comprehensive Documentation**: Complete API specification (REST endpoints, WS event schemas), storage schemas, and operational runbooks.
+-   **Automated Frontend Tests**: Run automated tests for the recently implemented frontend HUD features.
+</pending_tasks>
+
+<current_work>
+The Rugs.fun Data Service currently provides robust real-time game data ingestion and persistence. It captures , , , , , and  events, cleaning, normalizing, and storing them in MongoDB with appropriate indexes and TTLs. Key data points like God Candle occurrences, rug events, and PRNG verification details are derived and stored. Tick-level data is compacted into  and 5-tick OHLC frames in  for time-series analysis.
+
+The backend now exposes a  endpoint, providing real-time operational statistics such as , total messages/trades processed, message rates per second, connected WebSocket subscribers, and error counts. All outbound WebSocket broadcast messages from  are now versioned with a  field for forward compatibility.
+
+The frontend HUD (Heads-Up Display) has been significantly enhanced with developer-focused tools. It includes a health strip displaying the WebSocket connection status, 1-minute message rate, buffer depth, and last event timestamp. A live message filter panel has been implemented with a 10,000-entry ring buffer (drop-tail with suppressed counts), event type toggles (, , , , ), a regex filter with validation and debouncing, and up to 5 savable presets using localStorage. Message display is handled via a virtualized list using  for performance. A Diagnostics tab now features minimal SVG-only charts: a game duration histogram and a peak multiplier sparkline, both derived from the last 200 games.
+
+The project documentation structure has been initiated with a  folder, including  and a  sub-directory containing 9 user-provided research documents. Most critically, 7 canonical JSON schema files () for core event types have just been saved, forming the basis for the next development phase.
+
+The immediate next task is to integrate these new canonical schemas into the backend for event validation and to refactor the frontend filter panel to be schema-driven.
+</current_work>
+
+<optional_next_step>
+The next step is to confirm the implementation choices for backend canonicalization/validation and frontend schema-driven filtering.
+</optional_next_step>

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "currentSideBet.json",
+  "type": "object",
+  "properties": {
+    "playerId": { "$ref": "shared.defs.json#/$defs/playerId" },
+    "gameId": { "$ref": "shared.defs.json#/$defs/gameId" },
+    "username": { "$ref": "shared.defs.json#/$defs/username" },
+    "betAmount": { "type": "number", "minimum": 0 },
+    "xPayout": { "type": "number", "minimum": 1 },
+    "coinAddress": { "$ref": "shared.defs.json#/$defs/address" },
+    "startTick": { "$ref": "shared.defs.json#/$defs/tick" },
+    "endTick": { "$ref": "shared.defs.json#/$defs/tick" },
+    "tickIndex": { "$ref": "shared.defs.json#/$defs/tick" },
+    "timestamp": { "$ref": "shared.defs.json#/$defs/timestamp_ms" },
+    "type": { "type": "string", "enum": ["placed"] }
+  },
+  "required": [
+    "playerId", "gameId", "username", "betAmount", "xPayout", "coinAddress",
+    "startTick", "endTick", "tickIndex", "timestamp", "type"
+  ],
+  "additionalProperties": true
+}

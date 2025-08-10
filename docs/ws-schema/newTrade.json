@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "newTrade.json",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "shared.defs.json#/$defs/tradeId" },
+    "gameId": { "$ref": "shared.defs.json#/$defs/gameId" },
+    "playerId": { "$ref": "shared.defs.json#/$defs/playerId" },
+    "type": { "type": "string", "enum": ["buy", "sell"] },
+    "amount": { "$ref": "shared.defs.json#/$defs/sol" },
+    "coin": { "$ref": "shared.defs.json#/$defs/coin" },
+    "qty": { "type": "number", "minimum": 0 },
+    "tickIndex": { "$ref": "shared.defs.json#/$defs/tick" },
+    "price": { "type": ["number", "null"] }
+  },
+  "required": ["id", "gameId", "playerId", "type", "amount", "qty", "tickIndex", "coin"],
+  "additionalProperties": true
+}
