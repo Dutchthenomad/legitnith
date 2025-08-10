@@ -27,7 +27,7 @@ body { background: var(--rugs-bg); color: var(--rugs-fg); }
 
 .badge-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
 
-.header { background: rgba(21,22,29,0.8); border-bottom: 1px solid var(--rugs-border); }
+.header { background: rgba(21,22,29,0.8); border-bottom: 1px solid var(--rugs-border); position: sticky; top: 0; z-index: 50; }
 
 .btn-primary { background: var(--rugs-primary); color: var(--rugs-primary-fore); border: 1px solid #e6b400; }
 .btn-primary:hover { background: var(--rugs-primary-hover); }
