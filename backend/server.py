@@ -6,16 +6,23 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict, Set
+from typing import List, Optional, Any, Dict, Set, Tuple
 from collections import deque
 import uuid
 import time
 from datetime import datetime, timezone
 import asyncio
 import contextlib
+import json
 
 # Socket.IO client (read-only)
 import socketio
+
+# JSON Schema validation
+try:
+    import fastjsonschema
+except Exception:
+    fastjsonschema = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -24,6 +31,8 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+SCHEMA_DIR = ROOT_DIR.parent / "docs" / "ws-schema"
 
 # Create the main app and router with /api prefix
 app = FastAPI()
@@ -60,6 +69,156 @@ class LiveState(BaseModel):
     cooldownTimer: Optional[int] = None
     provablyFair: Optional[Dict[str, Any]] = None
     updatedAt: Optional[datetime] = None
+
+########################################################
+# JSON Schema registry & resolver (fastjsonschema)
+########################################################
+
+class SchemaRegistry:
+    def __init__(self, schema_dir: Path):
+        self.schema_dir = schema_dir
+        self._raw: Dict[str, Dict[str, Any]] = {}
+        self._resolved: Dict[str, Dict[str, Any]] = {}
+        self._validators: Dict[str, Any] = {}
+        self._descriptors: Dict[str, Dict[str, Any]] = {}
+        self._inbound_to_key: Dict[str, str] = {
+            "gameStateUpdate": "gameStateUpdate",
+            "standard/newTrade": "newTrade",
+            "gameStatePlayerUpdate": "gameStatePlayerUpdate",
+            # side-bets
+            "standard/sideBetPlaced": "currentSideBet",
+            "standard/sideBetResult": "newSideBet",
+            "sideBet": "newSideBet",
+            # optional playerUpdate if received
+            "playerUpdate": "playerUpdate",
+        }
+        self._outbound_mapping: Dict[str, str] = {
+            "gameStateUpdate": "game_state_update",
+            "newTrade": "trade",
+            "currentSideBet": "side_bet",
+            "newSideBet": "side_bet",
+            "gameStatePlayerUpdate": "game_state_player_update",
+            "playerUpdate": "player_update",
+        }
+        try:
+            self._load_all()
+        except Exception as e:
+            logger.warning(f"SchemaRegistry initialization warning: {e}")
+
+    def _load_all(self):
+        if not self.schema_dir.exists():
+            logger.warning(f"Schema directory not found: {self.schema_dir}")
+            return
+        # load raw
+        for p in self.schema_dir.glob("*.json"):
+            try:
+                with open(p, "r") as f:
+                    self._raw[p.name] = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load schema {p}: {e}")
+        # resolve and compile
+        for fname, schema in self._raw.items():
+            try:
+                resolved = self._resolve_refs(schema)
+                self._resolved[fname] = resolved
+                if fastjsonschema:
+                    validator = fastjsonschema.compile(resolved)
+                else:
+                    validator = None
+                key = fname.replace('.json', '')
+                self._validators[key] = validator
+                # descriptor: collect basic property types and required
+                props = {}
+                if isinstance(resolved.get("properties"), dict):
+                    for k, v in resolved["properties"].items():
+                        if isinstance(v, dict):
+                            t = v.get("type")
+                            if isinstance(t, list):
+                                # choose first non-null
+                                t = next((x for x in t if x != "null"), t[0] if t else None)
+                            props[k] = {"type": t}
+                self._descriptors[key] = {
+                    "id": resolved.get("$id") or fname,
+                    "title": resolved.get("title") or key,
+                    "required": resolved.get("required", []),
+                    "properties": props,
+                    "outboundType": self._outbound_mapping.get(key),
+                }
+            except Exception as e:
+                logger.warning(f"Failed to compile schema {fname}: {e}")
+
+    def _resolve_refs(self, schema: Any, base_doc: Optional[Dict[str, Any]] = None) -> Any:
+        """Resolve $ref supporting relative file refs with JSON Pointer fragments."""
+        if isinstance(schema, dict):
+            if "$ref" in schema and isinstance(schema["$ref"], str):
+                ref = schema["$ref"]
+                # Split file and fragment
+                if "#" in ref:
+                    file_part, frag = ref.split("#", 1)
+                else:
+                    file_part, frag = ref, ""
+                target_doc: Optional[Dict[str, Any]] = None
+                if file_part in ("", None):
+                    target_doc = base_doc or schema
+                else:
+                    # load referenced file
+                    ref_path = (self.schema_dir / file_part)
+                    if not ref_path.exists():
+                        # try direct name in _raw
+                        ref_json = self._raw.get(file_part)
+                        if ref_json is None:
+                            raise FileNotFoundError(f"Ref file not found: {file_part}")
+                        target_doc = ref_json
+                    else:
+                        with open(ref_path, "r") as f:
+                            target_doc = json.load(f)
+                target_doc = self._resolve_refs(target_doc, target_doc)
+                # Resolve JSON Pointer fragment
+                node: Any = target_doc
+                if frag:
+                    # remove leading '/'
+                    pointer = frag[1:] if frag.startswith("/") else frag
+                    if pointer:
+                        for token in pointer.split("/"):
+                            token = token.replace("~1", "/").replace("~0", "~")
+                            if isinstance(node, dict) and token in node:
+                                node = node[token]
+                            else:
+                                raise KeyError(f"Invalid $ref pointer {ref}")
+                return self._resolve_refs(node, target_doc)
+            else:
+                return {k: self._resolve_refs(v, base_doc or schema) for k, v in schema.items()}
+        elif isinstance(schema, list):
+            return [self._resolve_refs(x, base_doc) for x in schema]
+        else:
+            return schema
+
+    def validate(self, key: str, payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        validator = self._validators.get(key)
+        if not validator:
+            return True, None
+        try:
+            validator(payload)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def validate_inbound(self, inbound_event: str, payload: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
+        key = self._inbound_to_key.get(inbound_event)
+        if not key:
+            return True, None, None
+        ok, err = self.validate(key, payload)
+        return ok, err, key
+
+    def describe(self) -> Dict[str, Any]:
+        items = []
+        for key, desc in self._descriptors.items():
+            items.append({"key": key, **desc})
+        # only return stable order by key
+        items.sort(key=lambda x: x["key"])
+        return {"items": items}
+
+schema_registry: Optional[SchemaRegistry] = None
 
 ########################################################
 # Utility helpers & PRNG verification (Alea + drift)
@@ -376,6 +535,11 @@ class Metrics:
         self.error_counts: Dict[str, int] = {}
         self.msg_times = deque(maxlen=600)  # ~10 minutes if 1s buckets
         self.last_event_at: Optional[datetime] = None
+        # schema validation counters
+        self.schema_validation: Dict[str, Any] = {
+            "total": 0,
+            "perEvent": {}
+        }
 
     def incr_message(self):
         self.total_messages += 1
@@ -399,6 +563,14 @@ class Metrics:
         now_s = int(time.time())
         count = sum(1 for t in self.msg_times if now_s - t < window_seconds)
         return count / float(window_seconds)
+
+    def incr_schema(self, event_key: str, ok: bool):
+        self.schema_validation["total"] += 1
+        per = self.schema_validation["perEvent"].setdefault(event_key, {"ok": 0, "fail": 0})
+        if ok:
+            per["ok"] += 1
+        else:
+            per["fail"] += 1
 
 metrics = Metrics()
 
@@ -547,8 +719,22 @@ class RugsSocketService:
         version = provably_fair.get("version") or "v3"
         server_seed_hash = provably_fair.get("serverSeedHash")
 
+        # Schema validation (warn mode)
+        v_ok, v_err, v_key = (schema_registry.validate_inbound('gameStateUpdate', data) if schema_registry else (True, None, None))
+        if v_key:
+            metrics.incr_schema(v_key, bool(v_ok))
+
         # Broadcast minimal normalized frame to downstream
-        await broadcaster.broadcast({"schema": "v1", "type": "game_state_update", "gameId": game_id, "tick": tick_count, "price": price, "phase": phase, "ts": now_utc().isoformat()})
+        await broadcaster.broadcast({
+            "schema": "v1",
+            "type": "game_state_update",
+            "gameId": game_id,
+            "tick": tick_count,
+            "price": price,
+            "phase": phase,
+            "validation": {"ok": bool(v_ok), "schema": v_key},
+            "ts": now_utc().isoformat(),
+        })
 
         # Detect new active game
         if data.get("active") and (self.current_game_id != game_id):
@@ -635,6 +821,8 @@ class RugsSocketService:
         # Insert snapshot (observability)
         try:
             snap = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickCount": tick_count, "active": data.get("active"), "rugged": data.get("rugged"), "price": price, "cooldownTimer": data.get("cooldownTimer"), "provablyFair": provably_fair, "phase": phase, "payload": data, "createdAt": now_utc()}
+            if v_key:
+                snap["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
             await self.db.game_state_snapshots.insert_one(snap)
         except Exception as e:
             logger.error(f"Snapshot insert error: {e}")
@@ -679,16 +867,27 @@ class RugsSocketService:
 
     async def _handle_new_trade(self, trade: Dict[str, Any]):
         self.last_event_at = now_utc()
+        # validation
+        v_ok, v_err, v_key = (schema_registry.validate_inbound('standard/newTrade', trade) if schema_registry else (True, None, None))
+        if v_key:
+            metrics.incr_schema(v_key, bool(v_ok))
         try:
             doc = {"_id": str(uuid.uuid4()), "eventId": str(trade.get("id")), "gameId": trade.get("gameId"), "playerId": trade.get("playerId"), "type": trade.get("type"), "qty": trade.get("qty"), "tickIndex": trade.get("tickIndex"), "coin": trade.get("coin"), "amount": trade.get("amount"), "price": trade.get("price"), "createdAt": now_utc()}
+            if v_key:
+                doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
             await self.db.trades.insert_one(doc)
-            await broadcaster.broadcast({"schema": "v1", "type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({"schema": "v1", "type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
             metrics.incr_error("trade_insert")
 
     async def _handle_side_bet(self, event_type: str, payload: Dict[str, Any]):
         self.last_event_at = now_utc()
+        # choose schema key based on event_type
+        inbound_event = event_type
+        v_ok, v_err, v_key = (schema_registry.validate_inbound(inbound_event, payload) if schema_registry else (True, None, None))
+        if v_key:
+            metrics.incr_schema(v_key, bool(v_ok))
         try:
             doc = {"_id": str(uuid.uuid4()), "event": event_type, "payload": payload, "createdAt": now_utc()}
             # Try to normalize common fields if present (no simulation)
@@ -698,19 +897,27 @@ class RugsSocketService:
                 doc["startTick"] = int(payload["startTick"]) if payload["startTick"] is not None else None
             if "endTick" in payload:
                 doc["endTick"] = int(payload["endTick"]) if payload["endTick"] is not None else None
-            for k in ["betAmount", "targetSeconds", "payoutRatio", "won", "pnl"]:
+            for k in ["betAmount", "targetSeconds", "payoutRatio", "won", "pnl", "xPayout"]:
                 if k in payload:
                     doc[k] = payload[k]
+            if v_key:
+                doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
             await self.db.side_bets.insert_one(doc)
-            await broadcaster.broadcast({"schema": "v1", "type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({"schema": "v1", "type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Side bet store error: {e}")
             metrics.incr_error("side_bet_insert")
 
     async def _store_event(self, event_type: str, payload: Dict[str, Any]):
         self.last_event_at = now_utc()
+        v_ok, v_err, v_key = (schema_registry.validate_inbound(event_type, payload) if schema_registry else (True, None, None))
+        if v_key:
+            metrics.incr_schema(v_key, bool(v_ok))
         try:
-            await self.db.events.insert_one({"_id": str(uuid.uuid4()), "type": event_type, "payload": payload, "createdAt": now_utc()})
+            doc = {"_id": str(uuid.uuid4()), "type": event_type, "payload": payload, "createdAt": now_utc()}
+            if v_key:
+                doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
+            await self.db.events.insert_one(doc)
         except Exception as e:
             logger.error(f"Event store error: {e}")
             metrics.incr_error("event_insert")
@@ -779,6 +986,7 @@ async def metrics_endpoint():
         "messagesPerSecond5m": round(mps_5m, 3),
         "wsSubscribers": connected_clients,
         "errorCounters": metrics.error_counts,
+        "schemaValidation": metrics.schema_validation,
     }
 
 @api_router.get("/connection", response_model=ConnectionState)
@@ -916,6 +1124,12 @@ async def trigger_verification(game_id: str):
     result = await run_prng_verification(game_id)
     return result
 
+@api_router.get("/schemas")
+async def list_schemas():
+    if not schema_registry:
+        return {"items": []}
+    return schema_registry.describe()
+
 ########################################################
 # WebSocket route for downstream consumers
 ########################################################
@@ -959,8 +1173,14 @@ async def backfill_god_candle_flags(limit: int = 2000):
 
 @app.on_event("startup")
 async def startup_event():
-    global auth_svc
+    global auth_svc, schema_registry
     await ensure_indexes()
+    # load schemas
+    try:
+        schema_registry = SchemaRegistry(SCHEMA_DIR)
+        logger.info("SchemaRegistry loaded")
+    except Exception as e:
+        logger.warning(f"SchemaRegistry load failed: {e}")
     asyncio.create_task(backfill_god_candle_flags())
     auth_svc = RugsSocketService(db)
     auth_svc.start()

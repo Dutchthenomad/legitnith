@@ -6,7 +6,7 @@ import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Separator } from "./components/ui/separator";
 import { FixedSizeList as List } from "react-window";
-import { Cpu, RefreshCcw } from "lucide-react";
+import { Cpu, RefreshCcw, Plus, Trash2 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -173,28 +173,121 @@ const HealthStrip = ({ wsConnected, metrics, bufferDepth, suppressed, lastEventI
   </div>
 );
 
-const FilterToolbar = ({ filters, setFilters, regexStr, setRegexStr, regexValid, onPresetSave, onPresetApply }) => {
+// Simple schema-driven filter builder
+const operatorsByType = {
+  string: [
+    { key: "eq", label: "=" },
+    { key: "contains", label: "contains" },
+    { key: "starts", label: "startsWith" },
+  ],
+  number: [
+    { key: "eq", label: "=" },
+    { key: "neq", label: "!=" },
+    { key: "gt", label: ">" },
+    { key: "gte", label: ">=" },
+    { key: "lt", label: "<" },
+    { key: "lte", label: "<=" },
+  ],
+  boolean: [
+    { key: "is", label: "is" },
+  ],
+};
+
+const FilterToolbar = ({
+  filters,
+  setFilters,
+  regexStr,
+  setRegexStr,
+  regexValid,
+  onPresetSave,
+  onPresetApply,
+  schemaItems,
+  rules,
+  setRules,
+}) => {
+  const addRule = () => {
+    setRules((r) => (r.length >= 5 ? r : [...r, { event: "gameStateUpdate", field: "gameId", op: "eq", val: "" }]));
+  };
+  const removeRule = (idx) => {
+    setRules((r) => r.filter((_, i) => i !== idx));
+  };
+  const onRuleChange = (idx, patch) => {
+    setRules((r) => r.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+  const fieldsForEvent = (eventKey) => {
+    const it = schemaItems.find((i) => i.key === eventKey);
+    if (!it || !it.properties) return [];
+    return Object.entries(it.properties).map(([k, v]) => ({ key: k, type: v.type || "string" }));
+  };
+
   return (
-    <div className="hud-card px-3 py-2 flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant={filters.gs ? "default" : "secondary"} onClick={() => setFilters({ ...filters, gs: !filters.gs })}>game_state</Button>
-        <Button size="sm" variant={filters.trade ? "default" : "secondary"} onClick={() => setFilters({ ...filters, trade: !filters.trade })}>trade</Button>
-        <Button size="sm" variant={filters.god ? "default" : "secondary"} onClick={() => setFilters({ ...filters, god: !filters.god })}>god_candle</Button>
-        <Button size="sm" variant={filters.rug ? "default" : "secondary"} onClick={() => setFilters({ ...filters, rug: !filters.rug })}>rug</Button>
-        <Button size="sm" variant={filters.side ? "default" : "secondary"} onClick={() => setFilters({ ...filters, side: !filters.side })}>side_bet</Button>
+    <div className="hud-card px-3 py-2 flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={filters.gs ? "default" : "secondary"} onClick={() => setFilters({ ...filters, gs: !filters.gs })}>game_state</Button>
+          <Button size="sm" variant={filters.trade ? "default" : "secondary"} onClick={() => setFilters({ ...filters, trade: !filters.trade })}>trade</Button>
+          <Button size="sm" variant={filters.god ? "default" : "secondary"} onClick={() => setFilters({ ...filters, god: !filters.god })}>god_candle</Button>
+          <Button size="sm" variant={filters.rug ? "default" : "secondary"} onClick={() => setFilters({ ...filters, rug: !filters.rug })}>rug</Button>
+          <Button size="sm" variant={filters.side ? "default" : "secondary"} onClick={() => setFilters({ ...filters, side: !filters.side })}>side_bet</Button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" onClick={onPresetSave}>Save preset</Button>
+          <div className="flex items-center gap-1">
+            {[0,1,2,3,4].map((i) => (
+              <Button key={i} size="sm" variant="secondary" onClick={() => onPresetApply(i)}>P{i+1}</Button>
+            ))}
+          </div>
+        </div>
       </div>
-      <input
-        className={`px-2 py-1 text-xs rounded border ${regexValid ? "border-[var(--rugs-border)]" : "border-[var(--rugs-danger)]"} bg-transparent`}
-        value={regexStr}
-        onChange={(e) => setRegexStr(e.target.value)}
-        placeholder="regex filter (JSON match)"
-        style={{ minWidth: 220 }}
-      />
-      <Button size="sm" onClick={onPresetSave}>Save preset</Button>
-      <div className="flex items-center gap-1">
-        {[0,1,2,3,4].map((i) => (
-          <Button key={i} size="sm" variant="secondary" onClick={() => onPresetApply(i)}>P{i+1}</Button>
-        ))}
+
+      <div className="text-[11px] text-muted-foreground">Filters (AND across rules, applied per matching event type)</div>
+      {rules.map((rule, idx) => {
+        const fields = fieldsForEvent(rule.event);
+        const fieldType = (fields.find((f) => f.key === rule.field)?.type) || "string";
+        const ops = operatorsByType[fieldType] || operatorsByType.string;
+        return (
+          <div key={idx} className="flex items-center gap-2">
+            <select className="px-2 py-1 text-xs rounded bg-transparent border border-[var(--rugs-border)]" value={rule.event} onChange={(e) => onRuleChange(idx, { event: e.target.value, field: "" })}>
+              {schemaItems.map((it) => (
+                <option key={it.key} value={it.key}>{it.key}</option>
+              ))}
+            </select>
+            <select className="px-2 py-1 text-xs rounded bg-transparent border border-[var(--rugs-border)]" value={rule.field} onChange={(e) => onRuleChange(idx, { field: e.target.value })}>
+              <option value="">field…</option>
+              {fields.map((f) => (
+                <option key={f.key} value={f.key}>{f.key}</option>
+              ))}
+            </select>
+            <select className="px-2 py-1 text-xs rounded bg-transparent border border-[var(--rugs-border)]" value={rule.op} onChange={(e) => onRuleChange(idx, { op: e.target.value })}>
+              {ops.map((o) => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+            {fieldType === "boolean" ? (
+              <select className="px-2 py-1 text-xs rounded bg-transparent border border-[var(--rugs-border)]" value={String(rule.val)} onChange={(e) => onRuleChange(idx, { val: e.target.value === "true" })}>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            ) : (
+              <input className="px-2 py-1 text-xs rounded bg-transparent border border-[var(--rugs-border)]" value={rule.val ?? ""} onChange={(e) => onRuleChange(idx, { val: e.target.value })} placeholder="value" style={{ minWidth: 120 }} />
+            )}
+            <Button size="icon" variant="secondary" onClick={() => removeRule(idx)}><Trash2 className="w-3 h-3" /></Button>
+          </div>
+        );
+      })}
+      <div>
+        <Button size="sm" variant="secondary" onClick={addRule}><Plus className="w-3 h-3 mr-1" />Add rule</Button>
+      </div>
+
+      <div className="text-[11px] text-muted-foreground">Advanced (regex against JSON)</div>
+      <div className="flex items-center gap-2">
+        <input
+          className={`px-2 py-1 text-xs rounded border ${regexValid ? "border-[var(--rugs-border)]" : "border-[var(--rugs-danger)]"} bg-transparent`}
+          value={regexStr}
+          onChange={(e) => setRegexStr(e.target.value)}
+          placeholder="regex filter (JSON match)"
+          style={{ minWidth: 220 }}
+        />
       </div>
     </div>
   );
@@ -236,12 +329,32 @@ function App() {
   const { data: currentGame } = usePolling(`${API}/games/current`, 2000);
   const { data: prng } = usePolling(`${API}/prng/tracking?limit=10`, 5000);
   const { data: metrics } = usePolling(`${API}/metrics`, 2000);
+  const { data: schemasResp } = usePolling(`${API}/schemas`, 15000);
 
   const [verifying, setVerifying] = useState(false);
   const currentPrng = useMemo(() => {
     if (!currentGame?.id || !prng?.items) return null;
     return prng.items.find((i) => i.gameId === currentGame.id) || null;
   }, [prng, currentGame]);
+
+  // schema items
+  const schemaItems = useMemo(() => schemasResp?.items || [], [schemasResp]);
+  const [rules, setRules] = useState([]);
+
+  // migrate presets
+  useEffect(() => {
+    try {
+      const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
+      if (presets.length) {
+        // normalize shape
+        const p0 = presets[0];
+        if (p0 && !("rules" in p0)) {
+          const migrated = presets.map((p) => ({ filters: p.f, regex: p.r, rules: [] }));
+          localStorage.setItem("hud_presets", JSON.stringify(migrated));
+        }
+      }
+    } catch (_) {}
+  }, []);
 
   const refresh = async () => {
     try {
@@ -264,7 +377,7 @@ function App() {
   const onPresetSave = () => {
     try {
       const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
-      const entry = { f: filters, r: regexStr };
+      const entry = { filters, regex: regexStr, rules };
       const next = [entry, ...presets].slice(0, 5);
       localStorage.setItem("hud_presets", JSON.stringify(next));
     } catch (_) {}
@@ -275,8 +388,9 @@ function App() {
       const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
       const p = presets[idx];
       if (p) {
-        setFilters(p.f || filters);
-        setRegexStr(p.r || "");
+        setFilters(p.filters || filters);
+        setRegexStr(p.regex || "");
+        setRules(p.rules || []);
       }
     } catch (_) {}
   };
@@ -316,6 +430,52 @@ function App() {
     };
   }, [buffer]);
 
+  // map outbound type to inbound schema key
+  const outboundToSchemaKey = useMemo(() => {
+    const map = {};
+    (schemaItems || []).forEach((it) => {
+      if (it.outboundType) map[it.outboundType] = it.key;
+    });
+    return map;
+  }, [schemaItems]);
+
+  const applyRulesToMessage = (m) => {
+    if (!rules || rules.length === 0) return true;
+    // map outbound type to schema key
+    const schemaKey = outboundToSchemaKey[m.type];
+    const relevant = rules.filter((r) => r.event === schemaKey);
+    if (relevant.length === 0) return true;
+    try {
+      return relevant.every((r) => {
+        const val = m[r.field];
+        switch (r.op) {
+          case "eq":
+            return String(val) === String(r.val);
+          case "neq":
+            return String(val) !== String(r.val);
+          case "gt":
+            return Number(val) > Number(r.val);
+          case "gte":
+            return Number(val) >= Number(r.val);
+          case "lt":
+            return Number(val) < Number(r.val);
+          case "lte":
+            return Number(val) <= Number(r.val);
+          case "contains":
+            return (String(val || "").toLowerCase()).includes(String(r.val || "").toLowerCase());
+          case "starts":
+            return String(val || "").toLowerCase().startsWith(String(r.val || "").toLowerCase());
+          case "is":
+            return Boolean(val) === Boolean(r.val);
+          default:
+            return true;
+        }
+      });
+    } catch (_) {
+      return true;
+    }
+  };
+
   const filtered = useMemo(() => {
     if (!HUD_FEATURES_ENABLED) return [];
     let arr = buffer.toArray();
@@ -328,6 +488,8 @@ function App() {
       if (m.type === "side_bet") return filters.side;
       return false;
     });
+    // schema-driven rules
+    arr = arr.filter((m) => applyRulesToMessage(m));
     // regex
     if (regexStr) {
       try {
@@ -341,7 +503,7 @@ function App() {
       if (!regexValid) setRegexValid(true);
     }
     return arr.slice(-5000); // safety cap for rendering
-  }, [buffer, filters, regexStr, regexValid]);
+  }, [buffer, filters, regexStr, regexValid, rules, schemaItems]);
 
   // Minimal charts (SVG only)
   const DurationHistogramSVG = ({ items }) => {
@@ -415,6 +577,9 @@ function App() {
               regexValid={regexValid}
               onPresetSave={onPresetSave}
               onPresetApply={onPresetApply}
+              schemaItems={schemaItems}
+              rules={rules}
+              setRules={setRules}
             />
             <MessageList items={filtered} />
           </div>
