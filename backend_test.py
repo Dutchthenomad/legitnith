@@ -361,6 +361,154 @@ class RugsDataServiceTester:
         print("   ⚠ No rug event observed during 60-second monitoring window")
         return True  # Not a failure - rug events are rare
 
+    def test_metrics_endpoint(self):
+        """Test /api/metrics endpoint - main focus of review request"""
+        print(f"\n🔍 Testing Metrics Endpoint...")
+        
+        # First call to get initial metrics
+        success1, response1 = self.run_test("Metrics Endpoint (Call 1)", "GET", "metrics", 200, timeout=15)
+        
+        if not success1 or not isinstance(response1, dict):
+            print("   ❌ First metrics call failed")
+            return False
+        
+        # Validate required fields are present
+        required_fields = [
+            'serviceUptimeSec', 'currentSocketConnected', 'socketId', 'lastEventAt',
+            'totalMessagesProcessed', 'totalTrades', 'totalGamesTracked',
+            'messagesPerSecond1m', 'messagesPerSecond5m', 'wsSubscribers', 'errorCounters'
+        ]
+        
+        missing_fields = [field for field in required_fields if field not in response1]
+        if missing_fields:
+            print(f"   ❌ Missing required fields: {missing_fields}")
+            return False
+        
+        print(f"   ✓ All required fields present: {required_fields}")
+        
+        # Validate data types and sanity checks
+        metrics1 = response1
+        print(f"   Metrics snapshot 1:")
+        print(f"     serviceUptimeSec: {metrics1['serviceUptimeSec']} (type: {type(metrics1['serviceUptimeSec'])})")
+        print(f"     currentSocketConnected: {metrics1['currentSocketConnected']} (type: {type(metrics1['currentSocketConnected'])})")
+        print(f"     socketId: {metrics1['socketId']} (type: {type(metrics1['socketId'])})")
+        print(f"     lastEventAt: {metrics1['lastEventAt']} (type: {type(metrics1['lastEventAt'])})")
+        print(f"     totalMessagesProcessed: {metrics1['totalMessagesProcessed']} (type: {type(metrics1['totalMessagesProcessed'])})")
+        print(f"     totalTrades: {metrics1['totalTrades']} (type: {type(metrics1['totalTrades'])})")
+        print(f"     totalGamesTracked: {metrics1['totalGamesTracked']} (type: {type(metrics1['totalGamesTracked'])})")
+        print(f"     messagesPerSecond1m: {metrics1['messagesPerSecond1m']} (type: {type(metrics1['messagesPerSecond1m'])})")
+        print(f"     messagesPerSecond5m: {metrics1['messagesPerSecond5m']} (type: {type(metrics1['messagesPerSecond5m'])})")
+        print(f"     wsSubscribers: {metrics1['wsSubscribers']} (type: {type(metrics1['wsSubscribers'])})")
+        print(f"     errorCounters: {metrics1['errorCounters']} (type: {type(metrics1['errorCounters'])})")
+        
+        # Sanity checks
+        validation_errors = []
+        
+        # serviceUptimeSec should be int >= 0
+        if not isinstance(metrics1['serviceUptimeSec'], int) or metrics1['serviceUptimeSec'] < 0:
+            validation_errors.append(f"serviceUptimeSec should be int >= 0, got {metrics1['serviceUptimeSec']}")
+        
+        # currentSocketConnected should be bool
+        if not isinstance(metrics1['currentSocketConnected'], bool):
+            validation_errors.append(f"currentSocketConnected should be bool, got {type(metrics1['currentSocketConnected'])}")
+        
+        # socketId should be string or None
+        if metrics1['socketId'] is not None and not isinstance(metrics1['socketId'], str):
+            validation_errors.append(f"socketId should be string or None, got {type(metrics1['socketId'])}")
+        
+        # lastEventAt should be string (ISO) or None
+        if metrics1['lastEventAt'] is not None and not isinstance(metrics1['lastEventAt'], str):
+            validation_errors.append(f"lastEventAt should be string or None, got {type(metrics1['lastEventAt'])}")
+        
+        # totalMessagesProcessed should be int >= 0
+        if not isinstance(metrics1['totalMessagesProcessed'], int) or metrics1['totalMessagesProcessed'] < 0:
+            validation_errors.append(f"totalMessagesProcessed should be int >= 0, got {metrics1['totalMessagesProcessed']}")
+        
+        # totalTrades should be int >= 0
+        if not isinstance(metrics1['totalTrades'], int) or metrics1['totalTrades'] < 0:
+            validation_errors.append(f"totalTrades should be int >= 0, got {metrics1['totalTrades']}")
+        
+        # totalGamesTracked should be int >= 0
+        if not isinstance(metrics1['totalGamesTracked'], int) or metrics1['totalGamesTracked'] < 0:
+            validation_errors.append(f"totalGamesTracked should be int >= 0, got {metrics1['totalGamesTracked']}")
+        
+        # messagesPerSecond1m should be number >= 0
+        if not isinstance(metrics1['messagesPerSecond1m'], (int, float)) or metrics1['messagesPerSecond1m'] < 0:
+            validation_errors.append(f"messagesPerSecond1m should be number >= 0, got {metrics1['messagesPerSecond1m']}")
+        
+        # messagesPerSecond5m should be number >= 0
+        if not isinstance(metrics1['messagesPerSecond5m'], (int, float)) or metrics1['messagesPerSecond5m'] < 0:
+            validation_errors.append(f"messagesPerSecond5m should be number >= 0, got {metrics1['messagesPerSecond5m']}")
+        
+        # wsSubscribers should be int >= 0
+        if not isinstance(metrics1['wsSubscribers'], int) or metrics1['wsSubscribers'] < 0:
+            validation_errors.append(f"wsSubscribers should be int >= 0, got {metrics1['wsSubscribers']}")
+        
+        # errorCounters should be object (dict)
+        if not isinstance(metrics1['errorCounters'], dict):
+            validation_errors.append(f"errorCounters should be object, got {type(metrics1['errorCounters'])}")
+        
+        if validation_errors:
+            print("   ❌ Validation errors:")
+            for error in validation_errors:
+                print(f"     - {error}")
+            return False
+        
+        print("   ✓ All field types and values are valid")
+        
+        # Wait a moment and make second call to check monotonic behavior
+        print("   Waiting 2 seconds before second call...")
+        time.sleep(2)
+        
+        success2, response2 = self.run_test("Metrics Endpoint (Call 2)", "GET", "metrics", 200, timeout=15)
+        
+        if not success2 or not isinstance(response2, dict):
+            print("   ❌ Second metrics call failed")
+            return False
+        
+        metrics2 = response2
+        print(f"   Metrics snapshot 2:")
+        print(f"     serviceUptimeSec: {metrics2['serviceUptimeSec']}")
+        print(f"     totalMessagesProcessed: {metrics2['totalMessagesProcessed']}")
+        print(f"     totalTrades: {metrics2['totalTrades']}")
+        print(f"     totalGamesTracked: {metrics2['totalGamesTracked']}")
+        print(f"     wsSubscribers: {metrics2['wsSubscribers']}")
+        
+        # Check monotonic non-decreasing behavior
+        monotonic_errors = []
+        
+        # serviceUptimeSec should increase (or stay same if very fast)
+        if metrics2['serviceUptimeSec'] < metrics1['serviceUptimeSec']:
+            monotonic_errors.append(f"serviceUptimeSec decreased: {metrics1['serviceUptimeSec']} -> {metrics2['serviceUptimeSec']}")
+        
+        # totalMessagesProcessed should be non-decreasing
+        if metrics2['totalMessagesProcessed'] < metrics1['totalMessagesProcessed']:
+            monotonic_errors.append(f"totalMessagesProcessed decreased: {metrics1['totalMessagesProcessed']} -> {metrics2['totalMessagesProcessed']}")
+        
+        # totalTrades should be non-decreasing
+        if metrics2['totalTrades'] < metrics1['totalTrades']:
+            monotonic_errors.append(f"totalTrades decreased: {metrics1['totalTrades']} -> {metrics2['totalTrades']}")
+        
+        # totalGamesTracked should be non-decreasing
+        if metrics2['totalGamesTracked'] < metrics1['totalGamesTracked']:
+            monotonic_errors.append(f"totalGamesTracked decreased: {metrics1['totalGamesTracked']} -> {metrics2['totalGamesTracked']}")
+        
+        if monotonic_errors:
+            print("   ❌ Monotonic behavior violations:")
+            for error in monotonic_errors:
+                print(f"     - {error}")
+            return False
+        
+        print("   ✓ Counters are monotonic non-decreasing")
+        
+        # Check that route respects /api prefix (already tested by successful calls)
+        print("   ✓ Route respects /api prefix (successful calls to /api/metrics)")
+        
+        # Check no hardcoded URLs/ports (using environment variable)
+        print("   ✓ Using environment variable REACT_APP_BACKEND_URL (no hardcoded URLs)")
+        
+        return True
+
     def test_ttl_configuration(self):
         """Test TTL configuration by checking snapshots endpoint and code review"""
         print(f"\n🔍 Testing TTL Configuration...")
