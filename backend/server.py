@@ -259,6 +259,28 @@ async def ensure_indexes():
     await db.games.create_index([("peakMultiplier", -1)])
     await db.games.create_index([("totalTicks", -1)])
 
+    # Side bets
+    await db.side_bets.create_index([("gameId", 1), ("createdAt", -1)])
+    if "startTick" in (await db.side_bets.find_one() or {}):
+        await db.side_bets.create_index([("gameId", 1), ("startTick", 1)])
+
+    # Trades: ensure idempotency by unique eventId when available
+    try:
+        await db.trades.create_index([("eventId", 1)], unique=True, name="uniq_eventId")
+    except Exception:
+        # fallback non-unique index to avoid full scans
+        await db.trades.create_index([("eventId", 1)], name="idx_eventId")
+
+    # Meta as a KV store
+    try:
+        await db.meta.create_index([("key", 1)], unique=True, name="uniq_key")
+    except Exception:
+        await db.meta.create_index([("key", 1)], name="idx_key")
+
+    # Status checks
+    await db.status_checks.create_index([("timestamp", -1)])
+
+
     # Events (optional TTL 30d)
     await db.events.create_index([("type", 1), ("createdAt", -1)])
     try:
