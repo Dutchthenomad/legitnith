@@ -881,6 +881,7 @@ class RugsSocketService:
 
             stats["last_price"] = price
             stats["last_tick"] = tick_count
+            stats["last_seen_ts"] = time.time()
             self.game_stats[game_id] = stats
 
         # Insert snapshot (observability)
