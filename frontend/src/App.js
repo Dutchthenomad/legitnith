@@ -350,7 +350,12 @@ function App() {
 
   // schema items
   const schemaItems = useMemo(() => schemasResp?.items || [], [schemasResp]);
-  const [rules, setRules] = useState([]);
+  const [rules, setRules] = useState(() => {
+    try {
+      const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
+      return presets[0]?.rules || [];
+    } catch (_) { return []; }
+  });
 
   // migrate presets
   useEffect(() => {
