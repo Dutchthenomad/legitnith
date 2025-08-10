@@ -101,3 +101,48 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "Add /api/metrics endpoint, implement HUD ring buffer + virtualization and minimal SVG charts; keep data service single-responsibility and align with GRAD_STUDY."
+
+## backend:
+  - task: "/api/metrics endpoint"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented in-memory metrics counters and GET /api/metrics with serviceUptimeSec, socket connection, msg rates, totals, ws subscribers, and error counters."
+
+## frontend:
+  - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
+    implemented: false
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Pending; to be done after backend metrics testing."
+
+## metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+## test_plan:
+  current_focus:
+    - "/api/metrics endpoint"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+## agent_communication:
+  - agent: "main"
+    message: "Please test only the backend /api/metrics endpoint for availability and correct shape; no frontend tests yet."
