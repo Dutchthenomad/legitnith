@@ -1191,3 +1191,4 @@ async def shutdown_db_client():
             await auth_svc.stop()
     finally:
         client.close()
+
