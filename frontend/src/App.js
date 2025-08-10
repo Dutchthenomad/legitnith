@@ -531,7 +531,8 @@ function App() {
   }, [buffer, filters, regexStr, regexValid, rules, schemaItems]);
 
   // Minimal charts (SVG only)
-  const DurationHistogramSVG = ({ items }) => {
+  const DurationHistogramSVG = ({ items }) => { // container is a hud-card; ensure SVG is responsive within
+
     const ticks = (items || []).map((g) => Number(g.totalTicks || 0)).filter((n) => Number.isFinite(n) && n >= 0);
     const N = Math.min(200, ticks.length);
     const arr = ticks.slice(0, N);
