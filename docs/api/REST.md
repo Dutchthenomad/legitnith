@@ -19,7 +19,7 @@ GET /api/readiness
 
 GET /api/metrics
 - Returns operational counters
-- { serviceUptimeSec, currentSocketConnected, socketId, lastEventAt, totalMessagesProcessed, totalTrades, totalGamesTracked, messagesPerSecond1m, messagesPerSecond5m, wsSubscribers, errorCounters, schemaValidation }
+- { serviceUptimeSec, currentSocketConnected, socketId, lastEventAt, lastErrorAt, totalMessagesProcessed, totalTrades, totalGamesTracked, messagesPerSecond1m, messagesPerSecond5m, wsSubscribers, wsSlowClientDrops, dbPingMs, errorCounters, schemaValidation }
 - schemaValidation: { total, perEvent: { [schemaKey]: { ok, fail } } }
 
 GET /api/connection
