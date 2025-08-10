@@ -151,16 +151,27 @@
         comment: "✅ PASSED - All schema validation features working correctly: 1) GET /api/schemas returns 200 with JSON {items: [...]} containing 7 schemas including all required ones (gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate). Each schema has correct structure with key, id, title, required (array), properties (object), and outboundType (may be null). 2) GET /api/metrics includes schemaValidation object with total (786->811) and perEvent counters showing validation activity for gameStateUpdate (ok:377->397, fail:303), gameStatePlayerUpdate (ok:1, fail:0), and newTrade (ok:105->110, fail:0). 3) WebSocket /api/ws/stream messages include validation summaries with validation.ok (boolean) and validation.schema (string) fields - captured 163 validated messages out of 165 total including game_state_update and trade events. Schema registry properly loaded, validation counters incrementing, and all field types validated correctly."
 
   - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
-    implemented: false
+    implemented: true
     working: "NA"
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented HUD: ring buffer, type toggles, regex filter with presets, virtualized list, minimal SVG charts."
+  - task: "Schema-driven filter builder & dropdown contrast fix"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Pending; to be done after backend metrics testing."
+        comment: "Added schema-driven rule builder backed by /api/schemas with type-aware operators and preset migration; improved <select> readability with high-contrast CSS."
 
 ## metadata:
   created_by: "main_agent"
