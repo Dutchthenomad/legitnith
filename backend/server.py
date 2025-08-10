@@ -450,6 +450,8 @@ class RugsSocketService:
 
         @self.sio.on('standard/newTrade')
         async def on_new_trade(trade):
+            metrics.incr_message()
+            metrics.incr_trade()
             await self._handle_new_trade(trade)
 
         # Side bet related: only capture if the server actually emits these
