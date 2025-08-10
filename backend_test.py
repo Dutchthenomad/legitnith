@@ -369,8 +369,8 @@ class RugsDataServiceTester:
         return True  # Not a failure - rug events are rare
 
     def test_metrics_endpoint(self):
-        """Test /api/metrics endpoint - main focus of review request"""
-        print(f"\n🔍 Testing Metrics Endpoint...")
+        """Test /api/metrics endpoint - P2 changes: lastErrorAt, wsSlowClientDrops, dbPingMs"""
+        print(f"\n🔍 Testing Metrics Endpoint (P2 Changes)...")
         
         # First call to get initial metrics
         success1, response1 = self.run_test("Metrics Endpoint (Call 1)", "GET", "metrics", 200, timeout=15)
@@ -379,11 +379,14 @@ class RugsDataServiceTester:
             print("   ❌ First metrics call failed")
             return False
         
-        # Validate required fields are present
+        # Validate required fields are present (including P2 additions)
         required_fields = [
             'serviceUptimeSec', 'currentSocketConnected', 'socketId', 'lastEventAt',
             'totalMessagesProcessed', 'totalTrades', 'totalGamesTracked',
-            'messagesPerSecond1m', 'messagesPerSecond5m', 'wsSubscribers', 'errorCounters'
+            'messagesPerSecond1m', 'messagesPerSecond5m', 'wsSubscribers', 'errorCounters',
+            'schemaValidation',
+            # P2 additions:
+            'lastErrorAt', 'wsSlowClientDrops', 'dbPingMs'
         ]
         
         missing_fields = [field for field in required_fields if field not in response1]
@@ -391,7 +394,7 @@ class RugsDataServiceTester:
             print(f"   ❌ Missing required fields: {missing_fields}")
             return False
         
-        print(f"   ✓ All required fields present: {required_fields}")
+        print(f"   ✓ All required fields present (including P2 additions): {required_fields}")
         
         # Validate data types and sanity checks
         metrics1 = response1
@@ -400,13 +403,17 @@ class RugsDataServiceTester:
         print(f"     currentSocketConnected: {metrics1['currentSocketConnected']} (type: {type(metrics1['currentSocketConnected'])})")
         print(f"     socketId: {metrics1['socketId']} (type: {type(metrics1['socketId'])})")
         print(f"     lastEventAt: {metrics1['lastEventAt']} (type: {type(metrics1['lastEventAt'])})")
+        print(f"     lastErrorAt: {metrics1['lastErrorAt']} (type: {type(metrics1['lastErrorAt'])}) [P2]")
         print(f"     totalMessagesProcessed: {metrics1['totalMessagesProcessed']} (type: {type(metrics1['totalMessagesProcessed'])})")
         print(f"     totalTrades: {metrics1['totalTrades']} (type: {type(metrics1['totalTrades'])})")
         print(f"     totalGamesTracked: {metrics1['totalGamesTracked']} (type: {type(metrics1['totalGamesTracked'])})")
         print(f"     messagesPerSecond1m: {metrics1['messagesPerSecond1m']} (type: {type(metrics1['messagesPerSecond1m'])})")
         print(f"     messagesPerSecond5m: {metrics1['messagesPerSecond5m']} (type: {type(metrics1['messagesPerSecond5m'])})")
         print(f"     wsSubscribers: {metrics1['wsSubscribers']} (type: {type(metrics1['wsSubscribers'])})")
+        print(f"     wsSlowClientDrops: {metrics1['wsSlowClientDrops']} (type: {type(metrics1['wsSlowClientDrops'])}) [P2]")
+        print(f"     dbPingMs: {metrics1['dbPingMs']} (type: {type(metrics1['dbPingMs'])}) [P2]")
         print(f"     errorCounters: {metrics1['errorCounters']} (type: {type(metrics1['errorCounters'])})")
+        print(f"     schemaValidation: {type(metrics1['schemaValidation'])}")
         
         # Sanity checks
         validation_errors = []
@@ -426,6 +433,10 @@ class RugsDataServiceTester:
         # lastEventAt should be string (ISO) or None
         if metrics1['lastEventAt'] is not None and not isinstance(metrics1['lastEventAt'], str):
             validation_errors.append(f"lastEventAt should be string or None, got {type(metrics1['lastEventAt'])}")
+        
+        # P2: lastErrorAt should be string (ISO) or None
+        if metrics1['lastErrorAt'] is not None and not isinstance(metrics1['lastErrorAt'], str):
+            validation_errors.append(f"lastErrorAt should be string or None, got {type(metrics1['lastErrorAt'])}")
         
         # totalMessagesProcessed should be int >= 0
         if not isinstance(metrics1['totalMessagesProcessed'], int) or metrics1['totalMessagesProcessed'] < 0:
@@ -451,9 +462,21 @@ class RugsDataServiceTester:
         if not isinstance(metrics1['wsSubscribers'], int) or metrics1['wsSubscribers'] < 0:
             validation_errors.append(f"wsSubscribers should be int >= 0, got {metrics1['wsSubscribers']}")
         
+        # P2: wsSlowClientDrops should be int >= 0
+        if not isinstance(metrics1['wsSlowClientDrops'], int) or metrics1['wsSlowClientDrops'] < 0:
+            validation_errors.append(f"wsSlowClientDrops should be int >= 0, got {metrics1['wsSlowClientDrops']}")
+        
+        # P2: dbPingMs should be int >= 0 or None
+        if metrics1['dbPingMs'] is not None and (not isinstance(metrics1['dbPingMs'], int) or metrics1['dbPingMs'] < 0):
+            validation_errors.append(f"dbPingMs should be int >= 0 or None, got {metrics1['dbPingMs']}")
+        
         # errorCounters should be object (dict)
         if not isinstance(metrics1['errorCounters'], dict):
             validation_errors.append(f"errorCounters should be object, got {type(metrics1['errorCounters'])}")
+        
+        # schemaValidation should be object (dict)
+        if not isinstance(metrics1['schemaValidation'], dict):
+            validation_errors.append(f"schemaValidation should be object, got {type(metrics1['schemaValidation'])}")
         
         if validation_errors:
             print("   ❌ Validation errors:")
@@ -461,7 +484,7 @@ class RugsDataServiceTester:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ All field types and values are valid")
+        print("   ✓ All field types and values are valid (including P2 additions)")
         
         # Wait a moment and make second call to check monotonic behavior
         print("   Waiting 2 seconds before second call...")
@@ -480,6 +503,8 @@ class RugsDataServiceTester:
         print(f"     totalTrades: {metrics2['totalTrades']}")
         print(f"     totalGamesTracked: {metrics2['totalGamesTracked']}")
         print(f"     wsSubscribers: {metrics2['wsSubscribers']}")
+        print(f"     wsSlowClientDrops: {metrics2['wsSlowClientDrops']} [P2]")
+        print(f"     dbPingMs: {metrics2['dbPingMs']} [P2]")
         
         # Check monotonic non-decreasing behavior
         monotonic_errors = []
@@ -500,13 +525,17 @@ class RugsDataServiceTester:
         if metrics2['totalGamesTracked'] < metrics1['totalGamesTracked']:
             monotonic_errors.append(f"totalGamesTracked decreased: {metrics1['totalGamesTracked']} -> {metrics2['totalGamesTracked']}")
         
+        # P2: wsSlowClientDrops should be non-decreasing
+        if metrics2['wsSlowClientDrops'] < metrics1['wsSlowClientDrops']:
+            monotonic_errors.append(f"wsSlowClientDrops decreased: {metrics1['wsSlowClientDrops']} -> {metrics2['wsSlowClientDrops']}")
+        
         if monotonic_errors:
             print("   ❌ Monotonic behavior violations:")
             for error in monotonic_errors:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ Counters are monotonic non-decreasing")
+        print("   ✓ Counters are monotonic non-decreasing (including P2 additions)")
         
         # Check that route respects /api prefix (already tested by successful calls)
         print("   ✓ Route respects /api prefix (successful calls to /api/metrics)")
