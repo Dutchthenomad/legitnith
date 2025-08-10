@@ -568,7 +568,7 @@ function App() {
     );
   };
 
-  const PeakSparklineSVG = ({ items }) => {
+  const PeakSparklineSVG = ({ items }) => { // ensure it respects container width
     const peaks = (items || []).map((g) => Number(g.peakMultiplier || 0)).filter((n) => Number.isFinite(n) && n > 0);
     const N = Math.min(200, peaks.length);
     const arr = peaks.slice(0, N).reverse(); // newest on right
