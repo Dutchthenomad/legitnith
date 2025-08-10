@@ -1187,7 +1187,6 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    global auth_svc
     try:
         if auth_svc:
             await auth_svc.stop()
