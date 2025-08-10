@@ -8,6 +8,10 @@ import { Separator } from "./components/ui/separator";
 import { Cpu, RefreshCcw } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+// Feature flag (toggleable)
+const HUD_FEATURES_ENABLED = true;
+
+
 const API = `${BACKEND_URL}/api`;
 
 function usePolling(url, intervalMs = 1000) {
