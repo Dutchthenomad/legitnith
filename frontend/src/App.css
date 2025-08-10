@@ -68,3 +68,9 @@ body { background: var(--rugs-bg); color: var(--rugs-fg); }
 .hud-card button {
   border-radius: 8px;
 }
+
+/* Ensure SVGs cannot overflow their cards */
+.hud-card svg {
+  max-width: 100%;
+  display: block;
+}
