@@ -7,7 +7,7 @@ import threading
 from datetime import datetime
 
 class RugsDataServiceTester:
-    def __init__(self, base_url="https://a1c69971-abd7-48c2-9e91-ba3349135cbb.preview.emergentagent.com"):
+    def __init__(self, base_url="https://ffcaa61e-fd6d-4f7f-ade6-f2b75cdb8ff5.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
         self.tests_run = 0
