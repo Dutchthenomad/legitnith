@@ -472,6 +472,7 @@ class RugsSocketService:
 
         @self.sio.on('gameStatePlayerUpdate')
         async def on_player_update(payload):
+            metrics.incr_message()
             await self._store_event("gameStatePlayerUpdate", payload)
 
         @self.sio.on('rugPool')
