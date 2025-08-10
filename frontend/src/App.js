@@ -137,6 +137,9 @@ const LiveOverview = ({ live, prngStatus, onRefresh, onVerify, verifying }) => {
 const JsonPane = ({ data }) => (
   <div className="hud-card p-3 overflow-auto max-h-[420px]">
     <pre className="code-block text-xs text-muted-foreground">{data ? JSON.stringify(data, null, 2) : "No data yet"}</pre>
+  const metricsPoll = usePolling(`${API}/metrics`, 2000);
+  const metrics = metricsPoll.data;
+
   </div>
 );
 
