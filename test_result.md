@@ -119,6 +119,9 @@
       - working: true
         agent: "testing"
         comment: "✅ PASSED - Endpoint returns 200 JSON with all required fields: serviceUptimeSec (106), currentSocketConnected (true), socketId (TlZYBGh9v_U-E3teBGom), lastEventAt (ISO string), totalMessagesProcessed (745->767), totalTrades (177->179), totalGamesTracked (2), messagesPerSecond1m (7.833), messagesPerSecond5m (2.0), wsSubscribers (0), errorCounters ({}). All field types valid, counters monotonic non-decreasing, respects /api prefix, uses environment variable URL."
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - GET /api/metrics now includes P2 additions: lastErrorAt (None), wsSlowClientDrops (0), dbPingMs (None) without breaking previous fields. All 15 required fields present with correct types. Counters remain monotonic non-decreasing (772->787 messages, 125 trades, 1->2 games). P2 changes successfully integrated while maintaining backward compatibility."
   - task: "Schema validation + /api/schemas + metrics.schemaValidation"
     implemented: true
     working: true
