@@ -11,6 +11,10 @@ Conventions
 Endpoints
 
 GET /api/health
+- Liveness probe
+
+GET /api/readiness
+- Readiness probe; returns { dbOk, upstreamConnected, time }
 - Returns { status, time }
 
 GET /api/metrics
