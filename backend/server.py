@@ -921,7 +921,15 @@ class RugsSocketService:
             doc = {"_id": str(uuid.uuid4()), "eventId": str(trade.get("id")), "gameId": trade.get("gameId"), "playerId": trade.get("playerId"), "type": trade.get("type"), "qty": trade.get("qty"), "tickIndex": trade.get("tickIndex"), "coin": trade.get("coin"), "amount": trade.get("amount"), "price": trade.get("price"), "createdAt": now_utc()}
             if v_key:
                 doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
-            await self.db.trades.insert_one(doc)
+            # Idempotent insert on eventId when present
+            if doc.get("eventId"):
+                await self.db.trades.update_one(
+                    {"eventId": doc["eventId"]},
+                    {"$setOnInsert": doc},
+                    upsert=True,
+                )
+            else:
+                await self.db.trades.insert_one(doc)
             await broadcaster.broadcast({"schema": "v1", "type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
