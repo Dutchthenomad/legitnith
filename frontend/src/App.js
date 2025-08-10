@@ -11,6 +11,40 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 // Feature flag (toggleable)
 const HUD_FEATURES_ENABLED = true;
 
+// Ring buffer implementation (drop-tail with suppressed count)
+class RingBuffer {
+  constructor(capacity = 10000) {
+    this.capacity = capacity;
+    this.buffer = new Array(capacity);
+    this.start = 0;
+    this.size = 0;
+    this.suppressed = 0;
+  }
+  push(item) {
+    if (this.size < this.capacity) {
+      const idx = (this.start + this.size) % this.capacity;
+      this.buffer[idx] = item;
+      this.size += 1;
+    } else {
+      // drop-tail behavior
+      this.suppressed += 1;
+      const idx = (this.start + this.size - 1) % this.capacity;
+      this.buffer[idx] = item; // overwrite last index
+    }
+  }
+  toArray() {
+    const out = [];
+    for (let i = 0; i < this.size; i++) {
+      out.push(this.buffer[(this.start + i) % this.capacity]);
+    }
+    return out;
+  }
+  clear() {
+    this.start = 0; this.size = 0; this.suppressed = 0;
+  }
+}
+
+
 
 const API = `${BACKEND_URL}/api`;
 
