@@ -139,6 +139,61 @@
       - working: true
         agent: "testing"
         comment: "✅ P2 REGRESSION PASSED - GET /api/schemas returns 200 with all 7 schemas including required ones (gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate). Each schema has correct structure with key, id, title, required (array), properties (object), and outboundType. No /api route regressions detected - endpoint maintains full functionality after P2 changes."
+  - task: "GET /api/readiness with dbPingMs"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - GET /api/readiness returns 200 JSON with all required fields including P2 addition dbPingMs (0). Field types validated: dbOk (boolean), upstreamConnected (boolean), time (ISO string), dbPingMs (int >= 0). Readiness call correctly updates dbPingMs in metrics from None to 0, confirming P2 requirement that readiness updates metrics.dbPingMs after call."
+  - task: "Memory pruning at startup"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - Memory pruning injected at startup doesn't crash service. GET /api/health returns 200 with status='ok', confirming service starts successfully and basic endpoints work after P2 memory pruning changes."
+  - task: "Trades unique index and idempotency"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - Trades idempotency working correctly. Found non-unique eventId index (idx_eventId) in fallback mode. Duplicate insert prevention verified: first insert creates document, second insert with same eventId doesn't create duplicate. Only 1 document exists after 2 insert attempts, original document preserved (amount=0.1). Idempotency path still works as expected after P2 changes."
+  - task: "WebSocket /api/ws/stream regression"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - WebSocket /api/ws/stream connects successfully and receives hello + heartbeat within 30.5s (well under 35s limit). Connection established immediately, hello message received, heartbeat received within timeout. No /api route regressions detected for WebSocket functionality after P2 changes."
+  - task: "Database indexes verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ P2 REGRESSION PASSED - All required database indexes confirmed: side_bets (gameId,createdAt), meta unique key (uniq_key), trades eventId (idx_eventId non-unique fallback), status_checks timestamp. ensure_indexes function working correctly after P2 changes, all indexes properly created and maintained."
 
 ## frontend:
   - task: "Schema validation + /api/schemas + metrics.schemaValidation"
