@@ -990,7 +990,6 @@ async def metrics_endpoint():
 
 @api_router.get("/connection", response_model=ConnectionState)
 async def connection():
-    global auth_svc
     if auth_svc is None:
         return ConnectionState(connected=False)
     since_ms = None
