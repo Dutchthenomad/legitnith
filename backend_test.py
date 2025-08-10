@@ -851,27 +851,112 @@ class RugsDataServiceTester:
                 return False
         return success
 
+    def test_websocket_regression(self):
+        """Test WebSocket /api/ws/stream connection and hello/heartbeat within 35s"""
+        print(f"\n🔍 Testing WebSocket Regression (35s timeout)...")
+        
+        ws_url = f"{self.base_url.replace('https://', 'wss://').replace('http://', 'ws://')}/api/ws/stream"
+        print(f"   WebSocket URL: {ws_url}")
+        
+        hello_received = False
+        heartbeat_received = False
+        connection_successful = False
+        start_time = time.time()
+        
+        def on_message(ws, message):
+            nonlocal hello_received, heartbeat_received
+            try:
+                data = json.loads(message)
+                if isinstance(data, dict):
+                    msg_type = data.get('type')
+                    if msg_type == 'hello':
+                        hello_received = True
+                        print(f"   ✅ Hello message received: {data}")
+                    elif msg_type == 'heartbeat':
+                        heartbeat_received = True
+                        print(f"   ✅ Heartbeat message received: {data}")
+            except Exception as e:
+                print(f"   ⚠ Error processing message: {e}")
+        
+        def on_error(ws, error):
+            print(f"   ❌ WebSocket error: {error}")
+        
+        def on_close(ws, close_status_code, close_msg):
+            print(f"   🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        
+        def on_open(ws):
+            nonlocal connection_successful
+            connection_successful = True
+            print("   ✅ WebSocket connection established")
+        
+        try:
+            ws = websocket.WebSocketApp(
+                ws_url,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
+                on_close=on_close
+            )
+            
+            ws_thread = threading.Thread(target=ws.run_forever)
+            ws_thread.daemon = True
+            ws_thread.start()
+            
+            # Wait up to 35 seconds for hello and heartbeat
+            timeout = 35
+            while time.time() - start_time < timeout:
+                if connection_successful and hello_received and heartbeat_received:
+                    elapsed = time.time() - start_time
+                    print(f"   ✅ Both hello and heartbeat received within {elapsed:.1f}s")
+                    ws.close()
+                    return True
+                time.sleep(0.5)
+            
+            elapsed = time.time() - start_time
+            ws.close()
+            
+            if not connection_successful:
+                print(f"   ❌ WebSocket connection failed within {elapsed:.1f}s")
+                return False
+            elif not hello_received:
+                print(f"   ❌ Hello message not received within {elapsed:.1f}s")
+                return False
+            elif not heartbeat_received:
+                print(f"   ❌ Heartbeat message not received within {elapsed:.1f}s")
+                return False
+            else:
+                print(f"   ❌ Timeout after {elapsed:.1f}s")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ WebSocket test error: {e}")
+            return False
+
 def main():
-    print("🚀 Starting Rugs.fun Backend Schema Features Test")
-    print("Focus: Schema validation, /api/schemas, and WebSocket validation")
+    print("🚀 Starting Backend Regression Test")
+    print("Focus: Quick verification after pruning and lint changes")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run focused tests for schema features
+    # Run regression tests as specified in review request
     results = []
     
-    # Basic connectivity
-    results.append(("Health Check", tester.test_health()))
+    # 1. GET /api/health -> 200
+    results.append(("GET /api/health -> 200", tester.test_health()))
     
-    # Main focus: Schema features
-    results.append(("Schemas Endpoint", tester.test_schemas_endpoint()))
-    results.append(("Metrics Schema Validation", tester.test_metrics_schema_validation()))
-    results.append(("WebSocket Validation Summary", tester.test_websocket_validation_summary()))
+    # 2. GET /api/metrics -> contains schemaValidation
+    results.append(("GET /api/metrics -> contains schemaValidation", tester.test_metrics_schema_validation()))
+    
+    # 3. GET /api/schemas -> returns items
+    results.append(("GET /api/schemas -> returns items", tester.test_schemas_endpoint()))
+    
+    # 4. WebSocket /api/ws/stream -> connect and receive hello/heartbeat within 35s
+    results.append(("WebSocket /api/ws/stream -> hello/heartbeat within 35s", tester.test_websocket_regression()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 SCHEMA FEATURES TEST SUMMARY")
+    print("📊 REGRESSION TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -881,23 +966,20 @@ def main():
         status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status} {test_name}")
     
-    print(f"\nOverall: {passed_tests}/{total_tests} test suites passed")
+    print(f"\nOverall: {passed_tests}/{total_tests} regression tests passed")
     print(f"Individual API calls: {tester.tests_passed}/{tester.tests_run} passed")
     
-    # Specific findings for review request
+    # Specific findings for regression
     print("\n" + "=" * 70)
-    print("🎯 REVIEW REQUEST FINDINGS")
+    print("🎯 REGRESSION TEST RESULTS")
     print("=" * 70)
-    print("1. GET /api/schemas: Returns 200 with JSON {items: [...]}")
-    print("2. Schema items: Each has keys: key, id, title, required (array), properties (object), outboundType (may be null)")
-    print("3. Required schemas: gameStateUpdate, newTrade, currentSideBet, newSideBet, gameStatePlayerUpdate, playerUpdate")
-    print("4. GET /api/metrics: Includes schemaValidation object with total (number) and perEvent (object)")
-    print("5. WebSocket /api/ws/stream: Messages include validation.ok (boolean) and validation.schema (string or null)")
-    print("\nSchema validation features tested:")
-    print("- Schema registry loading and compilation")
-    print("- Schema validation counters in metrics")
-    print("- Validation summaries in WebSocket broadcasts")
-    print("- Proper field types and structure validation")
+    
+    if passed_tests == total_tests:
+        print("✅ ALL REGRESSION TESTS PASSED")
+        print("Backend endpoints are working correctly after pruning and lint changes")
+    else:
+        print("❌ SOME REGRESSION TESTS FAILED")
+        print("Backend may have issues after recent changes")
     
     return 0 if passed_tests == total_tests else 1
 
