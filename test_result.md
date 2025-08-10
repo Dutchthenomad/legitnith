@@ -152,26 +152,32 @@
 
   - task: "HUD filter panel, ring buffer, virtualization, minimal SVG charts"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented HUD: ring buffer, type toggles, regex filter with presets, virtualized list, minimal SVG charts."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - All HUD features working correctly: 1) Health strip renders with WS status, Msgs/sec counter (7.50), Buffer counter (14), and last event timestamp. 2) Ring buffer accumulates messages properly with virtualized list showing 21+ message rows with type and JSON content. 3) Type toggle buttons (game_state, trade, god_candle, rug, side_bet) are all visible and functional - tested toggling trade button off/on successfully. 4) Minimal SVG charts render in Diagnostics tab (5 SVG elements found including Duration Histogram and Peak Multiplier Sparkline). 5) WebSocket stream behavior working - messages accumulate in real-time and list updates when type filters are toggled."
   - task: "Schema-driven filter builder & dropdown contrast fix"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added schema-driven rule builder backed by /api/schemas with type-aware operators and preset migration; improved <select> readability with high-contrast CSS."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Schema-driven filter builder fully functional: 1) Dropdowns have excellent contrast (dark bg: rgb(39,41,53), light text: rgb(248,248,252), visible borders) and are fully interactable. 2) Successfully added rule with event=gameStateUpdate, field=gameId, op=starts, value='' as requested. 3) Rule removal with trash icon works perfectly. 4) Preset save/apply functionality working - saved preset and applied P1 successfully restored all dropdown values (gameStateUpdate, gameId, starts). 5) All 3 dropdowns (event, field, operator) populate correctly from /api/schemas endpoint and show proper type-aware operators. Filter builder is production-ready with good UX."
 
 ## metadata:
   created_by: "main_agent"
