@@ -391,6 +391,8 @@ function App() {
       const entry = { filters, regex: regexStr, rules };
       const next = [entry, ...presets].slice(0, 5);
       localStorage.setItem("hud_presets", JSON.stringify(next));
+      // force a tick so buttons visually reflect available presets
+      setRules((r) => [...r]);
     } catch (_) {}
   };
 
