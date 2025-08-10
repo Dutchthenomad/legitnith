@@ -586,11 +586,16 @@ class Metrics:
         self.error_counts: Dict[str, int] = {}
         self.msg_times = deque(maxlen=600)  # ~10 minutes if 1s buckets
         self.last_event_at: Optional[datetime] = None
+        self.last_error_at: Optional[datetime] = None
         # schema validation counters
         self.schema_validation: Dict[str, Any] = {
             "total": 0,
             "perEvent": {}
         }
+        # broadcaster metrics
+        self.ws_slow_client_drops = 0
+        # db ping metrics
+        self.last_db_ping_ms: Optional[int] = None
 
     def incr_message(self):
         self.total_messages += 1
