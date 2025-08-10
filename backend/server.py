@@ -27,10 +27,20 @@ except Exception:
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection (env provided)
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection (env provided) with validation and optional timeouts
+MONGO_URL = os.environ.get('MONGO_URL')
+DB_NAME = os.environ.get('DB_NAME')
+if not MONGO_URL or not DB_NAME:
+    raise RuntimeError("Missing required environment variables: MONGO_URL and/or DB_NAME")
+# Optional Mongo timeouts (ms)
+try:
+    _ss = int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '5000'))
+    _ct = int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '5000'))
+    _st = int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000'))
+except Exception:
+    _ss, _ct, _st = 5000, 5000, 10000
+client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=_ss, connectTimeoutMS=_ct, socketTimeoutMS=_st)
+db = client[DB_NAME]
 
 SCHEMA_DIR = ROOT_DIR.parent / "docs" / "ws-schema"
 
