@@ -1171,6 +1171,141 @@ class RugsDataServiceTester:
             print(f"   ❌ Broadcaster test error: {e}")
             return False
 
+    def test_websocket_side_bet_normalized_fields(self):
+        """Test WebSocket /api/ws/stream side_bet messages include normalized fields"""
+        print(f"\n🔍 Testing WebSocket Side Bet Normalized Fields...")
+        
+        ws_url = f"{self.base_url.replace('https://', 'wss://').replace('http://', 'ws://')}/api/ws/stream"
+        print(f"   WebSocket URL: {ws_url}")
+        
+        connection_successful = False
+        side_bet_messages = []
+        start_time = time.time()
+        
+        # Expected normalized fields for side_bet messages
+        expected_normalized_fields = [
+            'startTick', 'endTick', 'betAmount', 'targetSeconds', 
+            'payoutRatio', 'won', 'pnl', 'xPayout'
+        ]
+        
+        def on_message(ws, message):
+            nonlocal side_bet_messages
+            try:
+                data = json.loads(message)
+                if isinstance(data, dict):
+                    msg_type = data.get('type')
+                    if msg_type == 'side_bet':
+                        side_bet_messages.append(data)
+                        print(f"   📨 Side bet message received: {data}")
+                        
+                        # Check for normalized fields
+                        present_fields = []
+                        missing_fields = []
+                        null_fields = []
+                        
+                        for field in expected_normalized_fields:
+                            if field in data:
+                                present_fields.append(field)
+                                if data[field] is None:
+                                    null_fields.append(field)
+                            else:
+                                missing_fields.append(field)
+                        
+                        print(f"   Present normalized fields: {present_fields}")
+                        if null_fields:
+                            print(f"   Null normalized fields: {null_fields}")
+                        if missing_fields:
+                            print(f"   Missing normalized fields: {missing_fields}")
+                            
+            except Exception as e:
+                print(f"   ⚠ Error processing message: {e}")
+        
+        def on_error(ws, error):
+            print(f"   ❌ WebSocket error: {error}")
+        
+        def on_close(ws, close_status_code, close_msg):
+            print(f"   🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        
+        def on_open(ws):
+            nonlocal connection_successful
+            connection_successful = True
+            print("   ✅ WebSocket connection established")
+        
+        try:
+            ws = websocket.WebSocketApp(
+                ws_url,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
+                on_close=on_close
+            )
+            
+            ws_thread = threading.Thread(target=ws.run_forever)
+            ws_thread.daemon = True
+            ws_thread.start()
+            
+            # Wait for connection
+            print("   Waiting for WebSocket connection...")
+            time.sleep(3)
+            
+            if not connection_successful:
+                print("   ❌ WebSocket connection failed")
+                return False
+            
+            # Listen for side_bet messages for 30 seconds
+            print(f"   Listening for side_bet messages for 30 seconds...")
+            timeout = 30
+            
+            while time.time() - start_time < timeout:
+                if len(side_bet_messages) > 0:
+                    break
+                time.sleep(1)
+            
+            ws.close()
+            
+            if len(side_bet_messages) == 0:
+                print("   ⚠ No side_bet messages received during test period")
+                print("   This is expected if no side bets occurred during testing")
+                return True  # Not a failure - side bets are user-driven events
+            
+            # Analyze the side_bet messages we received
+            print(f"   📊 Analyzed {len(side_bet_messages)} side_bet messages")
+            
+            all_messages_valid = True
+            for i, msg in enumerate(side_bet_messages):
+                print(f"   Message {i+1}:")
+                
+                # Check for all expected normalized fields
+                present_count = 0
+                for field in expected_normalized_fields:
+                    if field in msg:
+                        present_count += 1
+                        value = msg[field]
+                        print(f"     {field}: {value} ({'null' if value is None else type(value).__name__})")
+                    else:
+                        print(f"     {field}: MISSING")
+                        all_messages_valid = False
+                
+                print(f"     Normalized fields present: {present_count}/{len(expected_normalized_fields)}")
+                
+                # Check required message structure
+                required_fields = ['type', 'schema', 'ts']
+                for field in required_fields:
+                    if field not in msg:
+                        print(f"     ❌ Missing required field: {field}")
+                        all_messages_valid = False
+            
+            if all_messages_valid:
+                print("   ✅ All side_bet messages include normalized fields")
+                return True
+            else:
+                print("   ❌ Some side_bet messages missing normalized fields")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ WebSocket side_bet test error: {e}")
+            return False
+
     def test_websocket_regression(self):
         """Test WebSocket /api/ws/stream connection and hello/heartbeat within 35s"""
         print(f"\n🔍 Testing WebSocket Regression (35s timeout)...")
