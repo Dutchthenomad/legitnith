@@ -702,7 +702,7 @@ class RugsSocketService:
                 if k in payload:
                     doc[k] = payload[k]
             await self.db.side_bets.insert_one(doc)
-            await broadcaster.broadcast({"type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({"schema": "v1", "type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Side bet store error: {e}")
             metrics.incr_error("side_bet_insert")
