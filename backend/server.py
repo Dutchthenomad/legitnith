@@ -691,6 +691,7 @@ class RugsSocketService:
 
     @staticmethod
     def _derive_phase(data: Dict[str, Any]) -> str:
+
         active = data.get("active")
         rugged = data.get("rugged")
         cooldown = data.get("cooldownTimer") or 0
