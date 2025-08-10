@@ -8,8 +8,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any, Dict, Set
 from collections import deque
-import time
 import uuid
+import time
 from datetime import datetime, timezone
 import asyncio
 import contextlib
@@ -208,7 +208,7 @@ def drift_price(price: float, rand_fn, version: str = 'v3') -> float:
         change = drift + (volatility * (2 * rand_fn() - 1))
 
     new_price = price * (1 + change)
-    if new_price < 0:
+    if new_price &lt; 0:
         new_price = 0.0
     return new_price
 
@@ -223,12 +223,12 @@ def verify_game(server_seed: str, game_id: str, version: str = 'v3') -> Dict[str
     prices = [1.0]
 
     for tick in range(5000):
-        if prng() < RUG_PROB:
+        if prng() &lt; RUG_PROB:
             rugged = True
             break
         price = drift_price(price, prng, version)
         prices.append(price)
-        if price > peak:
+        if price &gt; peak:
             peak = price
 
     return {
@@ -285,12 +285,12 @@ async def run_prng_verification(game_id: str):
         if len(a) != len(b):
             return False
         for i in range(len(a)):
-            if abs(float(a[i]) - float(b[i])) > eps:
+            if abs(float(a[i]) - float(b[i])) &gt; eps:
                 return False
         return True
 
     match = arrays_match(expected_prices, verified["prices"]) and (
-        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) < 1e-6
+        expected_peak is None or abs(float(expected_peak) - float(verified["peakMultiplier"])) &lt; 1e-6
     )
 
     result = {
@@ -363,6 +363,9 @@ class Broadcaster:
                     dead.append(ws)
             for ws in dead:
                 self.connections.discard(ws)
+
+broadcaster = Broadcaster()
+
 # -------------------- In-memory metrics (lightweight) --------------------
 class Metrics:
     def __init__(self):
@@ -371,7 +374,7 @@ class Metrics:
         self.total_trades = 0
         self.total_games_seen: Set[str] = set()
         self.error_counts: Dict[str, int] = {}
-        self.msg_times = deque(maxlen=600)  # last ~10 minutes at 1s buckets
+        self.msg_times = deque(maxlen=600)  # ~10 minutes if 1s buckets
         self.last_event_at: Optional[datetime] = None
 
     def incr_message(self):
@@ -394,13 +397,10 @@ class Metrics:
         if not self.msg_times:
             return 0.0
         now_s = int(time.time())
-        count = sum(1 for t in self.msg_times if now_s - t < window_seconds)
+        count = sum(1 for t in self.msg_times if now_s - t &lt; window_seconds)
         return count / float(window_seconds)
 
 metrics = Metrics()
-
-
-broadcaster = Broadcaster()
 
 ########################################################
 # Socket.IO Background Listener (read-only) + compaction + quality flags
@@ -430,18 +430,28 @@ class RugsSocketService:
             self.socket_id = self.sio.sid
             self.connected_at_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
             logger.info(f"Connected to Rugs.fun WebSocket as {self.socket_id}")
-            await self._log_connection_event("CONNECTED", {"socketId": self.socket_id})
+            try:
+                await self._log_connection_event("CONNECTED", {"socketId": self.socket_id})
+            except Exception:
+                metrics.incr_error("connection_log_error")
 
         @self.sio.event
         async def disconnect():
             logger.warning("Disconnected from Rugs.fun WebSocket")
             self.connected = False
-            await self._log_connection_event("DISCONNECTED", {})
+            try:
+                await self._log_connection_event("DISCONNECTED", {})
+            except Exception:
+                metrics.incr_error("connection_log_error")
 
         @self.sio.event
         async def connect_error(data):
             logger.error(f"Connection error: {data}")
-            await self._log_connection_event("ERROR", {"error": str(data)})
+            metrics.incr_error("socket_connect_error")
+            try:
+                await self._log_connection_event("ERROR", {"error": str(data)})
+            except Exception:
+                metrics.incr_error("connection_log_error")
 
         @self.sio.on('gameStateUpdate')
         async def on_game_state(data):
@@ -512,7 +522,11 @@ class RugsSocketService:
                 backoff = 1
             except Exception as e:
                 logger.error(f"Socket.IO loop error: {e}")
-                await self._log_connection_event("ERROR", {"error": str(e)})
+                metrics.incr_error("socket_loop_error")
+                try:
+                    await self._log_connection_event("ERROR", {"error": str(e)})
+                except Exception:
+                    metrics.incr_error("connection_log_error")
                 await asyncio.sleep(min(backoff, 30))
                 backoff = min(backoff * 2, 30)
 
@@ -523,6 +537,7 @@ class RugsSocketService:
     # ---- core handlers ----
     async def _handle_game_state_update(self, data: Dict[str, Any]):
         self.last_event_at = now_utc()
+        metrics.last_event_at = self.last_event_at
         phase = self._derive_phase(data)
 
         game_id = data.get("gameId")
@@ -538,6 +553,7 @@ class RugsSocketService:
         # Detect new active game
         if data.get("active") and (self.current_game_id != game_id):
             self.current_game_id = game_id
+            metrics.add_game(game_id)
             self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
 
             await self.db.meta.update_one({"key": "current_game_id"}, {"$set": {"key": "current_game_id", "value": game_id, "updatedAt": now_utc()}}, upsert=True)
@@ -551,17 +567,17 @@ class RugsSocketService:
         if game_id:
             stats = self.game_stats.get(game_id) or {"peak": 1.0, "ticks": 0, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
             q = stats.get("quality", {})
-            if tick_count <= stats.get("last_tick", -1):
+            if tick_count &lt;= stats.get("last_tick", -1):
                 q["duplicateOrOutOfOrder"] = True
-            if (tick_count - stats.get("last_tick", 0)) > 10:
+            if (tick_count - stats.get("last_tick", 0)) &gt; 10:
                 q["largeGap"] = True
-            if price <= 0:
+            if price &lt;= 0:
                 q["priceNonPositive"] = True
             q["lastCheckedAt"] = now_utc()
             stats["quality"] = q
 
             # Update peak/ticks
-            if price > stats["peak"]:
+            if price &gt; stats["peak"]:
                 stats["peak"] = price
             stats["ticks"] = tick_count
 
@@ -573,6 +589,7 @@ class RugsSocketService:
                 await self.db.game_ticks.update_one({"gameId": game_id, "tick": tick_count}, {"$setOnInsert": {"_id": str(uuid.uuid4()), "gameId": game_id, "tick": tick_count, "price": price, "createdAt": now_utc()}, "$set": {"updatedAt": now_utc()}}, upsert=True)
             except Exception as e:
                 logger.error(f"game_ticks upsert error: {e}")
+                metrics.incr_error("game_ticks_upsert")
 
             # ---- OHLC compaction per 5-tick index ----
             try:
@@ -588,26 +605,28 @@ class RugsSocketService:
                     await self.db.game_indices.update_one({"gameId": game_id, "index": index}, {"$set": {"high": high, "low": low, "close": price, "updatedAt": now_utc()}})
             except Exception as e:
                 logger.error(f"game_indices upsert error: {e}")
+                metrics.incr_error("game_indices_upsert")
 
             # ---- God Candle detection ----
             prev_price = None
             prices_arr = data.get("prices")
-            if isinstance(prices_arr, list) and len(prices_arr) >= 2:
+            if isinstance(prices_arr, list) and len(prices_arr) &gt;= 2:
                 prev_price = float(prices_arr[-2])
             else:
                 prev_price = float(stats.get("last_price") or price)
-            ratio = (price / prev_price) if prev_price and prev_price > 0 else 1.0
+            ratio = (price / prev_price) if prev_price and prev_price &gt; 0 else 1.0
             existing = await self.db.god_candles.count_documents({"gameId": game_id, "tickIndex": int(tick_count)})
-            is_god_candle = (ratio >= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
+            is_god_candle = (ratio &gt;= (GOD_CANDLE_MOVE - 1e-6)) and (existing == 0)
             if is_god_candle:
                 try:
-                    under_cap = prev_price <= 100 * STARTING_PRICE
+                    under_cap = prev_price &lt;= 100 * STARTING_PRICE
                     gc_doc = {"_id": str(uuid.uuid4()), "gameId": game_id, "tickIndex": int(tick_count), "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "version": version, "underCap": bool(under_cap), "createdAt": now_utc()}
                     await self.db.god_candles.insert_one(gc_doc)
                     await self.db.games.update_one({"id": game_id}, {"$set": {"hasGodCandle": True, "godCandleTick": int(tick_count), "godCandleFromPrice": prev_price, "godCandleToPrice": price, "updatedAt": now_utc()}})
                     await broadcaster.broadcast({"type": "god_candle", "gameId": game_id, "tick": tick_count, "fromPrice": prev_price, "toPrice": price, "ratio": ratio, "ts": now_utc().isoformat()})
                 except Exception as e:
                     logger.error(f"God Candle persist error: {e}")
+                    metrics.incr_error("god_candle_persist")
 
             stats["last_price"] = price
             stats["last_tick"] = tick_count
@@ -619,6 +638,7 @@ class RugsSocketService:
             await self.db.game_state_snapshots.insert_one(snap)
         except Exception as e:
             logger.error(f"Snapshot insert error: {e}")
+            metrics.incr_error("snapshot_insert")
 
         # Upsert live state singleton (HUD / API)
         try:
@@ -626,6 +646,7 @@ class RugsSocketService:
             await self.db.meta.update_one({"key": "live_state"}, {"$set": {"key": "live_state", **lite}}, upsert=True)
         except Exception as e:
             logger.error(f"Live state upsert error: {e}")
+            metrics.incr_error("live_state_upsert")
 
         # Handle revealed server seeds for completed games & verify
         try:
@@ -645,6 +666,7 @@ class RugsSocketService:
                     await self.db.games.update_one({"id": gid}, {"$set": updates}, upsert=True)
         except Exception as e:
             logger.error(f"History upsert error: {e}")
+            metrics.incr_error("history_upsert")
 
         # RUG end capture
         if data.get("rugged") and game_id:
@@ -653,6 +675,7 @@ class RugsSocketService:
                 await broadcaster.broadcast({"type": "rug", "gameId": game_id, "tick": tick_count, "endPrice": float(price), "ts": now_utc().isoformat()})
             except Exception as e:
                 logger.error(f"RUG end update error: {e}")
+                metrics.incr_error("rug_update")
 
     async def _handle_new_trade(self, trade: Dict[str, Any]):
         self.last_event_at = now_utc()
@@ -662,6 +685,7 @@ class RugsSocketService:
             await broadcaster.broadcast({"type": "trade", "gameId": doc["gameId"], "playerId": doc["playerId"], "tradeType": doc["type"], "tickIndex": doc["tickIndex"], "amount": doc["amount"], "qty": doc["qty"], "price": doc.get("price"), "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Trade insert error: {e}")
+            metrics.incr_error("trade_insert")
 
     async def _handle_side_bet(self, event_type: str, payload: Dict[str, Any]):
         self.last_event_at = now_utc()
@@ -681,6 +705,7 @@ class RugsSocketService:
             await broadcaster.broadcast({"type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "ts": now_utc().isoformat()})
         except Exception as e:
             logger.error(f"Side bet store error: {e}")
+            metrics.incr_error("side_bet_insert")
 
     async def _store_event(self, event_type: str, payload: Dict[str, Any]):
         self.last_event_at = now_utc()
@@ -688,10 +713,10 @@ class RugsSocketService:
             await self.db.events.insert_one({"_id": str(uuid.uuid4()), "type": event_type, "payload": payload, "createdAt": now_utc()})
         except Exception as e:
             logger.error(f"Event store error: {e}")
+            metrics.incr_error("event_insert")
 
     @staticmethod
     def _derive_phase(data: Dict[str, Any]) -> str:
-
         active = data.get("active")
         rugged = data.get("rugged")
         cooldown = data.get("cooldownTimer") or 0
@@ -700,7 +725,7 @@ class RugsSocketService:
             return "RUG"
         if active and not rugged:
             return "ACTIVE"
-        if (not active) and cooldown and cooldown > 0:
+        if (not active) and cooldown and cooldown &gt; 0:
             return "COOLDOWN"
         if (not active) and (cooldown == 0) and allow_pre:
             return "PRE_ROUND"
@@ -735,6 +760,26 @@ async def get_status_checks():
 @api_router.get("/health")
 async def health():
     return {"status": "ok", "time": now_utc().isoformat()}
+
+@api_router.get("/metrics")
+async def metrics_endpoint():
+    global auth_svc
+    mps_1m = metrics.msgs_per_sec_window(60)
+    mps_5m = metrics.msgs_per_sec_window(300)
+    connected_clients = len(broadcaster.connections)
+    return {
+        "serviceUptimeSec": int(time.time() - metrics.start_time),
+        "currentSocketConnected": bool(auth_svc and auth_svc.connected),
+        "socketId": (auth_svc.socket_id if auth_svc else None),
+        "lastEventAt": (metrics.last_event_at.isoformat() if metrics.last_event_at else None),
+        "totalMessagesProcessed": metrics.total_messages,
+        "totalTrades": metrics.total_trades,
+        "totalGamesTracked": len(metrics.total_games_seen),
+        "messagesPerSecond1m": round(mps_1m, 3),
+        "messagesPerSecond5m": round(mps_5m, 3),
+        "wsSubscribers": connected_clients,
+        "errorCounters": metrics.error_counts,
+    }
 
 @api_router.get("/connection", response_model=ConnectionState)
 async def connection():
@@ -867,9 +912,7 @@ async def game_verification(game_id: str):
 
 @api_router.post("/prng/verify/{game_id}")
 async def trigger_verification(game_id: str):
-    # run_prng_verification defined earlier (unchanged in this diff)
-    from math import isnan  # no-op import to satisfy linter in some envs
-    # We import above to avoid unused warnings in static analyzers
+    # run_prng_verification defined earlier
     result = await run_prng_verification(game_id)
     return result
 
@@ -897,7 +940,7 @@ async def ws_stream(ws: WebSocket):
 
 # Include router and CORS
 app.include_router(api_router)
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','), allow_methods=["*"], allow_headers=["*"],)
+app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','), allow_methods=["*"], allow_headers=["*"]) 
 
 ########################################################
 # Lifespan hooks & backfill
