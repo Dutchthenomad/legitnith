@@ -1253,36 +1253,35 @@ class RugsDataServiceTester:
             return False
 
 def main():
-    print("🚀 Starting Backend Regression Test")
-    print("Focus: Comprehensive regression testing as requested")
+    print("🚀 Starting Backend Regression Test - P2 Changes")
+    print("Focus: P2 changes - lastErrorAt, wsSlowClientDrops, dbPingMs, memory pruning, idempotency")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run regression tests as specified in review request
+    # Run P2 regression tests as specified in review request
     results = []
     
-    # 1. GET /api/readiness returns JSON with {dbOk:boolean, upstreamConnected:boolean, time:string} and 200
-    results.append(("GET /api/readiness -> JSON with correct shape", tester.test_readiness_endpoint()))
+    # P2 Test 1: GET /api/metrics now includes lastErrorAt, wsSlowClientDrops, dbPingMs without breaking previous fields
+    results.append(("P2: GET /api/metrics -> includes lastErrorAt, wsSlowClientDrops, dbPingMs", tester.test_metrics_endpoint()))
     
-    # 2. /api/metrics still returns correct shape including schemaValidation and wsSubscribers
-    results.append(("GET /api/metrics -> correct shape with schemaValidation", tester.test_metrics_endpoint()))
+    # P2 Test 2: GET /api/readiness returns dbPingMs and updates dbPingMs in metrics after call
+    results.append(("P2: GET /api/readiness -> returns dbPingMs and updates metrics", tester.test_readiness_endpoint()))
     
-    # 3. WebSocket /api/ws/stream still connects and heartbeats under 35s
-    results.append(("WebSocket /api/ws/stream -> connects and heartbeats under 35s", tester.test_websocket_regression()))
+    # P2 Test 3: Memory pruning injected at startup doesn't crash (test basic endpoints work)
+    results.append(("P2: Memory pruning doesn't crash -> basic endpoints work", tester.test_health()))
     
-    # 4. Trades idempotency: simulate duplicate insert path
-    results.append(("Trades idempotency -> duplicate insert prevention", tester.test_trades_idempotency()))
+    # P2 Test 4: Ensure unique index on trades.eventId remains and idempotency path still works
+    results.append(("P2: Trades idempotency -> unique index and duplicate prevention", tester.test_trades_idempotency()))
     
-    # 5. Ensure ensure_indexes created new indexes
-    results.append(("Database indexes -> side_bets, meta, trades, status_checks", tester.test_ensure_indexes()))
-    
-    # 6. Confirm broadcaster change doesn't break broadcasting
-    results.append(("Broadcaster functionality -> receive non-heartbeat frames", tester.test_broadcaster_functionality()))
+    # P2 Test 5: Verify no /api route regressions - test key endpoints
+    results.append(("P2: No /api route regressions -> schemas endpoint", tester.test_schemas_endpoint()))
+    results.append(("P2: No /api route regressions -> WebSocket connection", tester.test_websocket_regression()))
+    results.append(("P2: No /api route regressions -> database indexes", tester.test_ensure_indexes()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 BACKEND REGRESSION TEST SUMMARY")
+    print("📊 P2 BACKEND REGRESSION TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -1292,26 +1291,25 @@ def main():
         status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status} {test_name}")
     
-    print(f"\nOverall: {passed_tests}/{total_tests} regression tests passed")
+    print(f"\nOverall: {passed_tests}/{total_tests} P2 regression tests passed")
     print(f"Individual API calls: {tester.tests_passed}/{tester.tests_run} passed")
     
-    # Specific findings for regression
+    # Specific findings for P2 regression
     print("\n" + "=" * 70)
-    print("🎯 BACKEND REGRESSION RESULTS")
+    print("🎯 P2 BACKEND REGRESSION RESULTS")
     print("=" * 70)
     
     if passed_tests == total_tests:
-        print("✅ ALL BACKEND REGRESSION TESTS PASSED")
-        print("All requested functionality is working correctly:")
-        print("  - /api/readiness endpoint returns correct JSON structure")
-        print("  - /api/metrics includes schemaValidation and wsSubscribers")
-        print("  - WebSocket connects and heartbeats within 35s")
-        print("  - Trades idempotency prevents duplicate inserts")
-        print("  - Database indexes are properly created")
-        print("  - Broadcaster functionality works correctly")
+        print("✅ ALL P2 BACKEND REGRESSION TESTS PASSED")
+        print("All P2 changes are working correctly:")
+        print("  - GET /api/metrics includes lastErrorAt, wsSlowClientDrops, dbPingMs")
+        print("  - GET /api/readiness returns dbPingMs and updates metrics")
+        print("  - Memory pruning at startup doesn't crash the service")
+        print("  - Trades unique index on eventId remains and idempotency works")
+        print("  - No /api route regressions detected")
     else:
-        print("❌ SOME BACKEND REGRESSION TESTS FAILED")
-        print("Backend may have issues that need attention")
+        print("❌ SOME P2 BACKEND REGRESSION TESTS FAILED")
+        print("P2 changes may have introduced issues that need attention")
         failed_tests = [name for name, passed in results if not passed]
         print(f"Failed tests: {failed_tests}")
     
