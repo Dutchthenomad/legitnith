@@ -548,7 +548,8 @@ function App() {
     return (
       <div className="hud-card p-3">
         <div className="text-xs mb-2 text-muted-foreground">Duration Histogram (ticks)</div>
-        <svg width={w} height={h}>
+        <div style={{ width: "100%", overflow: "hidden" }}>
+          <svg width={w} height={h} style={{ maxWidth: "100%", display: "block" }}>
           {counts.map((c, i) => {
             const bh = (c / maxCount) * (h - 20);
             return (
