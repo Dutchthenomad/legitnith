@@ -1,0 +1,574 @@
+EVERY FUCKING POSSIBLE EVENT THAT MATTERS IN RUGS I CAN FIND CAUSE IM TIRED OF NOT KNOWING AND ai GUESSING!!!!!!
+******************************************************************************************************
+UNDERSTAND THESE WERE TAKEN RANDOMLY FROM THE SOCKET.IO CONSOLE FEED AND ALL DATA IS WHAT APPLIED AT THAT MOMENT. 
+*******************************************************
+**CONNECTED PLAYER (ME/MY PROFILE) EVENTS**
+*******************************************************
+
+*******  PLAYER UDATE   ***********
+
+"playerUpdate"
+
+
+42["playerUpdate",…]
+0: "playerUpdate"
+1: {id: "did:privy:cma0qu4v702w7l10myyrvc680", cash: 0.352576572, bonusBalance: 0, bonusWagerReq: 0,…}
+authenticated: true
+autobuysEnabled: false
+autosellPrice: null
+avgCost: 0
+bonusBalance: 0
+bonusWagerReq: 0
+bonusWagered: 0
+cash: 0.352576572
+crateCooldown: {active: true, cooldownEnds: 1754797691159, remainingSeconds: 5750}
+active: true
+cooldownEnds: 1754797691159
+remainingSeconds: 5750
+crateKeys: {gold: 0, diamond: 0, coal: 0, iron: 0, referral: 0, tier2: 0, tier0: 19, tier1: 4}
+coal: 0
+diamond: 0
+gold: 0
+iron: 0
+referral: 0
+tier0: 19
+tier1: 4
+tier2: 0
+cumulativePnL: 0
+hasInteracted: false
+hitMaxWin: false
+id: "did:privy:cma0qu4v702w7l10myyrvc680"
+levelInfo: {level: 22, xp: 8103, xpForNextLevel: 15000, totalXP: 133103}
+level: 22
+totalXP: 133103
+xp: 8103
+xpForNextLevel: 15000
+pnlPercent: 0
+positionQty: 0
+recentCrateRewards: [{crateType: "tier1", crateName: "Bronze Crate",…}]
+0: {crateType: "tier1", crateName: "Bronze Crate",…}
+cooldownEnds: 1754797691159
+crateName: "Bronze Crate"
+crateType: "tier1"
+remainingSeconds: 7200
+reward: {type: "cash", amount: 0.02, probability: 0.13}
+amount: 0.02
+probability: 0.13
+type: "cash"
+selectedCoin: null
+shitcoinBalances: {0xPractice: 100}
+0xPractice: 100
+sideBet: null
+sidebetPnl: 0
+totalInvested: 0
+
+
+New Trade “newTrade” type: “buy”
+
+42["standard/newTrade",…]
+0: "standard/newTrade"
+1: {id: "256", gameId: "20250810-83523e12cb654d83", playerId: "did:privy:cmc8k3stl00i2ju0mg1oc39cf",…}
+amount: 0.052
+coin: "solana"
+gameId: "20250810-83523e12cb654d83"
+id: "256"
+playerId: "did:privy:cmc8k3stl00i2ju0mg1oc39cf"
+qty: 0.012321718
+tickIndex: 157
+type: "buy"
+
+New Trade “newTrade” type: “sell”
+
+
+42["standard/newTrade",…]
+0: "standard/newTrade"
+1: {id: "247", gameId: "20250810-83523e12cb654d83", playerId: "did:privy:cmamv2plz088yl20mx95isx19",…}
+amount: 0.317001932
+coin: "solana"
+gameId: "20250810-83523e12cb654d83"
+id: "247"
+playerId: "did:privy:cmamv2plz088yl20mx95isx19"
+price: 4.148547298659635
+qty: 0.076412756
+tickIndex: 154
+type: "sell"
+
+FULL Game State Update “gameStateUpdate”
+Context notes: The entries that show this data are part of a UI display of the averages of the last 100 games and does not apply to the current active game other than that it will be part of that statistic as soon as the game ends.   averageMultiplier: 12.768463602318604,count2x: 40, count10x: 8, count50x: 3, count100x: 3
+
+42["gameStateUpdate", {active: true, price: 1.7865454939940228,…}]
+0: "gameStateUpdate"
+1: {active: true, price: 1.7865454939940228,…}
+active: true                        
+allowPreRoundBuys: false
+averageMultiplier: 12.768463602318604
+connectedPlayers: 217
+cooldownPaused: false
+cooldownTimer: 0
+count2x: 40
+count10x: 8
+count50x: 3
+count100x: 3
+gameId: "20250810-746761805e1c429a"
+leaderboard: [{id: "did:privy:cmdrxltt400buie0bsckyeoml", username: "perc5", level: 0, pnl: 26.395560689,…},…]
+pauseMessage: ""
+price: 1.7865454939940228
+prices: [1, 1.0108515884940557, 0.9992836968617815, 1.0232475862160781, 1.0142766441444768, 1.0319079607021169,…]
+0: 1
+1: 1.0108515884940557
+2: 0.9992836968617815
+3: 1.0232475862160781
+4: 1.0142766441444768
+5: 1.0319079607021169
+6: 1.047509714312605
+7: 1.0426293119144063
+8: 1.0316812659882884
+9: 1.0165078791788864
+10: 1.005683903300012
+11: 1.0169014096914235
+12: 1.0193536379802959
+13: 1.1822281600511126
+14: 0.9462680424147617
+15: 0.953906001529586
+16: 0.9566863214109544
+17: 0.9531264262227661
+18: 0.9541924789997278
+19: 0.9516390022680806
+20: 0.964001351337143
+21: 0.9701591305973385
+22: 0.975161458677543
+23: 0.9711085772597716
+24: 0.9613210443136101
+25: 0.9496072232948021
+26: 0.9621721650999064
+27: 0.9774189629082977
+28: 1.0081398256262026
+29: 1.0332047822195458
+30: 1.0606736935612937
+31: 0.8937046774740247
+32: 0.9236293289772545
+33: 0.9346953749865718
+34: 0.9398660886671364
+35: 0.9475865030611549
+36: 0.9596171670106378
+37: 0.9833916978923446
+38: 0.9838068123390209
+39: 1.1822843010441508
+40: 1.173801035942658
+41: 1.169305977158824
+42: 1.1633673530711626
+43: 1.1681882696897863
+44: 1.1709136573551409
+45: 1.1929116575225458
+46: 1.1956327662558748
+47: 1.3889420155036145
+48: 1.415401357868935
+49: 1.4365255075203642
+50: 1.1980114090904546
+51: 1.2216077553199323
+52: 1.2317877016996857
+53: 1.230387349944939
+54: 1.2335607709324665
+55: 1.2680023165641436
+56: 1.276398057336872
+57: 1.3007840731698508
+58: 1.3240907416592012
+59: 1.314511452450147
+60: 1.3015413366103779
+61: 1.3052172827247543
+62: 1.3291543449351928
+63: 1.342661147938896
+64: 1.3310949594579013
+65: 1.3323973954756407
+66: 1.3231668358886643
+67: 1.3034034452275618
+68: 1.3386951550289652
+69: 1.376832633555079
+70: 1.402444530158312
+71: 1.393732093218376
+72: 1.3986802083837788
+73: 1.4368195726536621
+74: 1.4379822157716082
+75: 1.4841302987421308
+76: 1.4951637058683258
+77: 1.5241143960838324
+78: 1.7690975907080086
+79: 1.771243407321671
+80: 1.787520234518979
+81: 1.7865454939940228
+provablyFair: {serverSeedHash: "caa4d1b95c64bb16e43aeb42220764d13b4d6eeb8e5078233f946a88c6387877", version: "v3"}
+rugRoyale: {status: "SCHEDULED", activeEventId: "admin-94fef664-f5ac-48ed-a098-b26f2721191f",…}
+rugged: false
+rugpool: {instarugCount: 7, threshold: 10, rugpoolAmount: 4.736820789000002}
+tickCount: 81
+tradeCount: 157
+
+
+
+New Side Bet “newSideBet”
+
+42["newSideBet",…]
+0: "newSideBet"
+1: {playerId: "did:privy:cmbmdjnog00v5jo0mwml5qrun", gameId: "20250810-746761805e1c429a",…}
+betAmount: 50
+coinAddress: "0xPractice"
+endTick: 128
+gameId: "20250810-746761805e1c429a"
+playerId: "did:privy:cmbmdjnog00v5jo0mwml5qrun"
+startTick: 88
+tickIndex: 88
+timestamp: 1754801310078
+type: "placed"
+username: "prince"
+xPayout: 5
+
+New Chat Message (To be completely ignored unless specifically stated otherwise; recording for records) 
+
+42["newChatMessage",…]
+0: "newChatMessage"
+1: {playerId: "did:privy:cmaop45uz00hlla0lwfqcm6h9", username: "Zyzco", level: 48, message: "lmao",…}
+discordUsername: "zyzco."
+filtered: false
+level: 48
+message: "lmao"
+playerId: "did:privy:cmaop45uz00hlla0lwfqcm6h9"
+role: null
+tag: "grindoor"
+timestamp: 1754801312449
+username: "Zyzco"
+verified: true
+
+Player Update “playerUpdate” (contains comprehensive player profile data)
+
+42["playerUpdate",…]
+0: "playerUpdate"
+1: {id: "did:privy:cma0qu4v702w7l10myyrvc680", cash: 0.347095839, bonusBalance: 0, bonusWagerReq: 0,…}
+authenticated: true
+autobuysEnabled: false
+autosellPrice: null
+avgCost: 0
+bonusBalance: 0
+bonusWagerReq: 0
+bonusWagered: 0
+cash: 0.347095839
+crateKeys: {gold: 0, diamond: 0, coal: 0, iron: 0, referral: 0, tier2: 0, tier0: 19, tier1: 4}
+cumulativePnL: 0
+hasInteracted: false
+hitMaxWin: false
+id: "did:privy:cma0qu4v702w7l10myyrvc680"
+levelInfo: {level: 22, xp: 8153, xpForNextLevel: 15000, totalXP: 133153}
+pnlPercent: 0
+positionQty: 0
+recentCrateRewards: [{crateType: "tier1", crateName: "Bronze Crate",…}]
+selectedCoin: null
+shitcoinBalances: {0xPractice: 100}
+sideBet: null
+sidebetPnl: 0
+totalInvested: 0
+
+
+Game State Player Update (contains gameId during active game)’
+
+42["gameStatePlayerUpdate", {gameId: "20250810-b3ec22c0ea51443b"}]
+0: "gameStatePlayerUpdate"
+1: {gameId: "20250810-b3ec22c0ea51443b"}
+gameId: "20250810-b3ec22c0ea51443b"
+
+
+
+
+
+
+Game State Update: Game History “gameHistory” (CRUCIAL COMPONENT TO THE RUG EVENT) (1 of 2: Provides the current end game results and reveals) 
+42["gameStateUpdate",…]
+0: "gameStateUpdate"
+1: {gameHistory: [{id: "20250810-b3ec22c0ea51443b",…}, {id: "20250810-fa8d2735355d4cfc",…},…],…}
+active: true
+allowPreRoundBuys: false
+availableShitcoins: [{address: "0xPractice", ticker: "FREE", name: "Practice SOL", max_bet: 10000, max_win: 100000}]
+averageMultiplier: 12.458337461179735
+connectedPlayers: 216
+cooldownPaused: false
+cooldownTimer: 0
+count2x: 38
+count10x: 6
+count50x: 3
+count100x: 3
+gameHistory: [{id: "20250810-b3ec22c0ea51443b",…}, {id: "20250810-fa8d2735355d4cfc",…},…]
+gameId: "20250810-156eba8f33514596"
+gameVersion: "v3"
+leaderboard: [{id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0.248586306,…},…]
+pauseMessage: ""
+price: 0.0011321032050798554
+prices: [1, 0.9919142317172529, 0.9971587474371258, 1.0244986617397673, 1.047499706679915, 1.0433160983762753,…]
+provablyFair: {serverSeedHash: "2115f64a5eede8ed1b0d2e5b5a19fee347a9fe07e859fd0bb590440ed20c9d20", version: "v3"}
+rugRoyale: {status: "SCHEDULED", activeEventId: "admin-94fef664-f5ac-48ed-a098-b26f2721191f",…}
+rugged: true
+rugpool: {instarugCount: 8, rugpoolAmount: 5.963496651500002, totalEntries: 13288, threshold: 10,…}
+tickCount: 547
+trades: []
+
+
+
+Game State Update: Game History “gameHistory” (CRUCIAL COMPONENT TO THE RUG EVENT) (2 of 2: Provides the current upcoming game’s GamdeId and Seed Hash)
+
+
+42["gameStateUpdate",…]
+0: "gameStateUpdate"
+1: {gameHistory: [{id: "20250810-156eba8f33514596",…}, {id: "20250810-b3ec22c0ea51443b",…},…],…}
+active: false
+allowPreRoundBuys: false
+availableShitcoins: [{address: "0xPractice", ticker: "FREE", name: "Practice SOL", max_bet: 10000, max_win: 100000}]
+averageMultiplier: 12.463623323706642
+connectedPlayers: 216
+cooldownPaused: false
+cooldownTimer: 15000
+count2x: 38
+count10x: 6
+count50x: 3
+count100x: 3
+gameHistory: [{id: "20250810-156eba8f33514596",…}, {id: "20250810-b3ec22c0ea51443b",…},…]
+gameId: "20250810-65d95c0a0c8248c3"
+gameVersion: "v3"
+leaderboard: [{id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0.248586306,…},…]
+pauseMessage: ""
+price: 1
+prices: [1]
+provablyFair: {serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068", version: "v3"}
+rugRoyale: {status: "SCHEDULED", activeEventId: "admin-94fef664-f5ac-48ed-a098-b26f2721191f",…}
+rugged: false
+rugpool: {instarugCount: 8, rugpoolAmount: 5.963496651500002, totalEntries: 13288, threshold: 10,…}
+tickCount: 0
+trades: []
+
+Game State Update (Active Cool Down TImer Allow PreRound Buys still False)
+
+42["gameStateUpdate",…]
+0: "gameStateUpdate"
+1: {gameId: "20250810-65d95c0a0c8248c3", cooldownTimer: 14900, cooldownPaused: false,…}
+allowPreRoundBuys: false
+connectedPlayers: 216
+cooldownPaused: false
+cooldownTimer: 14900
+gameId: "20250810-65d95c0a0c8248c3"
+leaderboard: [{id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0.248586306,…},…]
+0: {id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0.248586306,…}
+1: {id: "did:privy:cmat1o3pb00mulk0m71gu7k9i", username: "Captainsuh", level: 29, pnl: 0.078034678,…}
+2: {id: "did:privy:cmbyc696601fcjr0lmxurm3up", username: "Jujun", level: 4, pnl: 0.068340967,…}
+3: {id: "did:privy:cmd6mjft000lsla0mt4eo6b6h", username: "ZYNOCIDE", level: 21, pnl: 0.026160891999999998,…}
+4: {id: "did:privy:cmcgqu2kb00xule0m7g0oncqo", username: "Tbird07", level: 51, pnl: 0.024574375,…}
+5: {id: "did:privy:cmaosr7ed01g4if0mpbxcf2rx", username: "TriggaMicTheGoat", level: 54,…}
+6: {id: "did:privy:cmb1fwgx301itl70ml0r9ahds", username: "SooDamnDelicious", level: 52,…}
+7: {id: "did:privy:cmb5kljtc0028jx0mvknhc7qv", username: "Trap2", level: 32, pnl: 0.011621257,…}
+8: {id: "did:privy:cmcka062x00wql20mrvoi6s65", username: "Jakari", level: 29, pnl: 0.01, regularPnl: 0,…}
+9: {id: "did:privy:cmdn0bp0800h2ju0j8zus1p6s", username: "AdamR", level: 18, pnl: 0.004406917,…}
+provablyFair: {serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068", version: "v3"}
+serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068"
+version: "v3"
+
+
+Game State Update (Active Cool Down TImer Allow PreRound Buys now True)
+
+42["gameStateUpdate",…]
+0: "gameStateUpdate"
+1: {gameId: "20250810-65d95c0a0c8248c3", cooldownTimer: 8300, cooldownPaused: false,…}
+allowPreRoundBuys: true
+connectedPlayers: 213
+cooldownPaused: false
+cooldownTimer: 8300
+gameId: "20250810-65d95c0a0c8248c3"
+leaderboard: [{id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0, pnlPercent: 0,…},…]
+0: {id: "did:privy:cmdn5fauo0247lb0i0vw96613", username: "anoni", level: 27, pnl: 0, pnlPercent: 0,…}
+1: {id: "did:privy:cmbvwywro00r1jx0lky4mgvg9", username: "deaznut", level: 31, pnl: 0, pnlPercent: 0,…}
+2: {id: "did:privy:cmdvg5ka800ejla0cpj1z94hv", username: "GOATonICE", level: 17, pnl: 0, pnlPercent: 0,…}
+3: {id: "did:privy:cma4gg3wj001ijz0memhqm1j7", username: "xxiamthereaperxx", level: 16, pnl: 0,…}
+4: {id: "did:privy:cmcmrs9kb02jwjo0nhnlrjtto", username: "d3e", level: 24, pnl: 0, pnlPercent: 0,…}
+5: {id: "did:privy:cmbbkjy1f00lsl40mh1x0a0vz", username: "JamesBrincefield", level: 39, pnl: 0,…}
+6: {id: "did:privy:cmahxxthz003kky0ou1kjhtm8", username: "coach", level: 29, pnl: 0, pnlPercent: 0,…}
+7: {id: "did:privy:cmdzsw58b029kl50b5dt63yd7", username: "thatmandan", level: 13, pnl: 0, pnlPercent: 0,…}
+8: {id: "did:privy:cmd81jldb0027k10midq4yn8u", username: "REAPER", level: 11, pnl: 0, pnlPercent: 0,…}
+9: {id: "did:privy:cmbn0hhvt00huk60mw884epcs", username: "sy6xolol", level: 35, pnl: 0, pnlPercent: 0,…}
+provablyFair: {serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068", version: "v3"}
+
+
+ New Trade during PreRound Sale:
+
+
+2["standard/newTrade",…]
+0: "standard/newTrade"
+1: {id: "362", gameId: "20250810-65d95c0a0c8248c3", playerId: "did:privy:cmdn5fauo0247lb0i0vw96613",…}
+amount: 0.3
+coin: "solana"
+gameId: "20250810-65d95c0a0c8248c3"
+id: "362"
+playerId: "did:privy:cmdn5fauo0247lb0i0vw96613"
+qty: 0.3
+tickIndex: 0
+type: "buy"
+
+
+PreRound Buy SideBet position bought for when game begins 
+
+42["newSideBet",…]
+0: "newSideBet"
+1: {playerId: "did:privy:cmcka062x00wql20mrvoi6s65", gameId: "20250810-65d95c0a0c8248c3",…}
+betAmount: 0.02
+coinAddress: "So11111111111111111111111111111111111111112"
+endTick: 40
+gameId: "20250810-65d95c0a0c8248c3"
+playerId: "did:privy:cmcka062x00wql20mrvoi6s65"
+startTick: 0
+tickIndex: 0
+timestamp: 1754802408107
+type: "placed"
+username: "Jakari"
+xPayout: 5
+
+Game State Update that Activates the game
+
+42["gameStateUpdate",…]
+0: "gameStateUpdate"
+1: {active: true, price: 1, prices: [1], trades: [], rugged: false, tickCount: 0, cooldownTimer: 0,…}
+active: true
+allowPreRoundBuys: false
+connectedPlayers: 216
+cooldownPaused: false
+cooldownTimer: 0
+gameId: "20250810-65d95c0a0c8248c3"
+gameVersion: "v3"
+leaderboard: []
+pauseMessage: ""
+price: 1
+prices: [1]
+0: 1
+provablyFair: {serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068", version: "v3"}
+serverSeedHash: "a87ec7bf14ac3a9696ef5b60f587782aa62371f028379af5ffa16a33efb3e068"
+version: "v3"
+rugRoyale: {status: "SCHEDULED", activeEventId: "admin-94fef664-f5ac-48ed-a098-b26f2721191f",…}
+rugged: false
+rugpool: {instarugCount: 8, rugpoolAmount: 5.963496651500002, totalEntries: 13288, threshold: 10,…}
+tickCount: 0
+trades: []
+New Side Bet entered during active game
+
+42["newSideBet",…]
+0: "newSideBet"
+1: {playerId: "did:privy:cmbwgen1z00g6kw0mi22l41cu", gameId: "20250810-65d95c0a0c8248c3",…}
+betAmount: 0.04
+coinAddress: "So11111111111111111111111111111111111111112"
+endTick: 40
+gameId: "20250810-65d95c0a0c8248c3"
+playerId: "did:privy:cmbwgen1z00g6kw0mi22l41cu"
+startTick: 0
+tickIndex: 0
+timestamp: 1754802412955
+type: "placed"
+username: "Devo776"
+xPayout: 5
+
+NOW FOR NEW TRADES AND SIDE BETS SPECIFICALLY FOR ME AS THE CONNECTED PLAYER (Upstream Communications)
+
+BuyOrder:
+42146["buyOrder", {amount: 0.001}]
+0: "buyOrder"
+1: {amount: 0.001}
+amount: 0.001
+newTrade
+42["standard/newTrade",…]
+0: "standard/newTrade"
+1: {id: "188", gameId: "20250810-e7926517796b4434", playerId: "did:privy:cma0qu4v702w7l10myyrvc680",…}
+amount: 0.001
+coin: "solana"
+gameId: "20250810-e7926517796b4434"
+id: "188"
+playerId: "did:privy:cma0qu4v702w7l10myyrvc680"
+qty: 0.000451575
+tickIndex: 178
+type: "buy"
+Success
+43146[{success: true}]
+0: {success: true}
+success: true
+
+
+New Sell Order 
+43146[{success: true}]
+0: {success: true}
+success: true
+Newtrade
+42["standard/newTrade",…]
+0: "standard/newTrade"
+1: {id: "195", gameId: "20250810-e7926517796b4434", playerId: "did:privy:cma0qu4v702w7l10myyrvc680",…}
+amount: 0.001246133
+coin: "solana"
+gameId: "20250810-e7926517796b4434"
+id: "195"
+playerId: "did:privy:cma0qu4v702w7l10myyrvc680"
+price: 2.759526282630909
+qty: 0.000451575
+tickIndex: 186
+type: "sell"
+Success
+43149[{success: true}]
+0: {success: true}
+success: true
+
+New Side Bet: requestSidebet
+42374["requestSidebet",…]
+0: "requestSidebet"
+1: {amount: 0.001, coinAddress: "So11111111111111111111111111111111111111112", xPayout: 5}
+amount: 0.001
+coinAddress: "So11111111111111111111111111111111111111112"
+xPayout: 5
+currentSidebet:
+42["currentSidebet",…]
+0: "currentSidebet"
+1: {playerId: "did:privy:cma0qu4v702w7l10myyrvc680", gameId: "20250810-1e07edaa6faf4811",…}
+betAmount: 0.001
+coinAddress: "So11111111111111111111111111111111111111112"
+endTick: 47
+gameId: "20250810-1e07edaa6faf4811"
+playerId: "did:privy:cma0qu4v702w7l10myyrvc680"
+startTick: 7
+tickIndex: 7
+timestamp: 1754803779964
+type: "placed"
+username: "Nomad"
+xPayout: 5
+
+Side bet Won in this case
+43374[{success: true, message: "Side bet placed",…}]
+0: {success: true, message: "Side bet placed",…}
+message: "Side bet placed"
+sidebet: {playerId: "did:privy:cma0qu4v702w7l10myyrvc680", gameId: "20250810-1e07edaa6faf4811",…}
+betAmount: 0.001
+coinAddress: "So11111111111111111111111111111111111111112"
+endTick: 47
+gameId: "20250810-1e07edaa6faf4811"
+playerId: "did:privy:cma0qu4v702w7l10myyrvc680"
+startTick: 7
+tickIndex: 7
+timestamp: 1754803779964
+type: "placed"
+username: "Nomad"
+xPayout: 5
+success: true
+currentSidebetResult
+["currentSidebetResult",…]
+0: "currentSidebetResult"
+1: {playerId: "did:privy:cma0qu4v702w7l10myyrvc680", gameId: "20250810-1e07edaa6faf4811",…}
+betAmount: 0.001
+coinAddress: "So11111111111111111111111111111111111111112"
+endTick: 47
+gameId: "20250810-1e07edaa6faf4811"
+payout: 0.005
+playerId: "did:privy:cma0qu4v702w7l10myyrvc680"
+profit: 0.004
+
+
+startTick: 7
+tickIndex: 7
+timestamp: 1754803780554
+type: "payout"
+username: "Nomad"
+xPayout: 5
