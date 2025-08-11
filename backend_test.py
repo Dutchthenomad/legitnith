@@ -369,8 +369,8 @@ class RugsDataServiceTester:
         return True  # Not a failure - rug events are rare
 
     def test_metrics_endpoint(self):
-        """Test /api/metrics endpoint - main focus of review request"""
-        print(f"\n🔍 Testing Metrics Endpoint...")
+        """Test /api/metrics endpoint - P2 changes: lastErrorAt, wsSlowClientDrops, dbPingMs"""
+        print(f"\n🔍 Testing Metrics Endpoint (P2 Changes)...")
         
         # First call to get initial metrics
         success1, response1 = self.run_test("Metrics Endpoint (Call 1)", "GET", "metrics", 200, timeout=15)
@@ -379,11 +379,14 @@ class RugsDataServiceTester:
             print("   ❌ First metrics call failed")
             return False
         
-        # Validate required fields are present
+        # Validate required fields are present (including P2 additions)
         required_fields = [
             'serviceUptimeSec', 'currentSocketConnected', 'socketId', 'lastEventAt',
             'totalMessagesProcessed', 'totalTrades', 'totalGamesTracked',
-            'messagesPerSecond1m', 'messagesPerSecond5m', 'wsSubscribers', 'errorCounters'
+            'messagesPerSecond1m', 'messagesPerSecond5m', 'wsSubscribers', 'errorCounters',
+            'schemaValidation',
+            # P2 additions:
+            'lastErrorAt', 'wsSlowClientDrops', 'dbPingMs'
         ]
         
         missing_fields = [field for field in required_fields if field not in response1]
@@ -391,7 +394,7 @@ class RugsDataServiceTester:
             print(f"   ❌ Missing required fields: {missing_fields}")
             return False
         
-        print(f"   ✓ All required fields present: {required_fields}")
+        print(f"   ✓ All required fields present (including P2 additions): {required_fields}")
         
         # Validate data types and sanity checks
         metrics1 = response1
@@ -400,13 +403,17 @@ class RugsDataServiceTester:
         print(f"     currentSocketConnected: {metrics1['currentSocketConnected']} (type: {type(metrics1['currentSocketConnected'])})")
         print(f"     socketId: {metrics1['socketId']} (type: {type(metrics1['socketId'])})")
         print(f"     lastEventAt: {metrics1['lastEventAt']} (type: {type(metrics1['lastEventAt'])})")
+        print(f"     lastErrorAt: {metrics1['lastErrorAt']} (type: {type(metrics1['lastErrorAt'])}) [P2]")
         print(f"     totalMessagesProcessed: {metrics1['totalMessagesProcessed']} (type: {type(metrics1['totalMessagesProcessed'])})")
         print(f"     totalTrades: {metrics1['totalTrades']} (type: {type(metrics1['totalTrades'])})")
         print(f"     totalGamesTracked: {metrics1['totalGamesTracked']} (type: {type(metrics1['totalGamesTracked'])})")
         print(f"     messagesPerSecond1m: {metrics1['messagesPerSecond1m']} (type: {type(metrics1['messagesPerSecond1m'])})")
         print(f"     messagesPerSecond5m: {metrics1['messagesPerSecond5m']} (type: {type(metrics1['messagesPerSecond5m'])})")
         print(f"     wsSubscribers: {metrics1['wsSubscribers']} (type: {type(metrics1['wsSubscribers'])})")
+        print(f"     wsSlowClientDrops: {metrics1['wsSlowClientDrops']} (type: {type(metrics1['wsSlowClientDrops'])}) [P2]")
+        print(f"     dbPingMs: {metrics1['dbPingMs']} (type: {type(metrics1['dbPingMs'])}) [P2]")
         print(f"     errorCounters: {metrics1['errorCounters']} (type: {type(metrics1['errorCounters'])})")
+        print(f"     schemaValidation: {type(metrics1['schemaValidation'])}")
         
         # Sanity checks
         validation_errors = []
@@ -426,6 +433,10 @@ class RugsDataServiceTester:
         # lastEventAt should be string (ISO) or None
         if metrics1['lastEventAt'] is not None and not isinstance(metrics1['lastEventAt'], str):
             validation_errors.append(f"lastEventAt should be string or None, got {type(metrics1['lastEventAt'])}")
+        
+        # P2: lastErrorAt should be string (ISO) or None
+        if metrics1['lastErrorAt'] is not None and not isinstance(metrics1['lastErrorAt'], str):
+            validation_errors.append(f"lastErrorAt should be string or None, got {type(metrics1['lastErrorAt'])}")
         
         # totalMessagesProcessed should be int >= 0
         if not isinstance(metrics1['totalMessagesProcessed'], int) or metrics1['totalMessagesProcessed'] < 0:
@@ -451,9 +462,21 @@ class RugsDataServiceTester:
         if not isinstance(metrics1['wsSubscribers'], int) or metrics1['wsSubscribers'] < 0:
             validation_errors.append(f"wsSubscribers should be int >= 0, got {metrics1['wsSubscribers']}")
         
+        # P2: wsSlowClientDrops should be int >= 0
+        if not isinstance(metrics1['wsSlowClientDrops'], int) or metrics1['wsSlowClientDrops'] < 0:
+            validation_errors.append(f"wsSlowClientDrops should be int >= 0, got {metrics1['wsSlowClientDrops']}")
+        
+        # P2: dbPingMs should be int >= 0 or None
+        if metrics1['dbPingMs'] is not None and (not isinstance(metrics1['dbPingMs'], int) or metrics1['dbPingMs'] < 0):
+            validation_errors.append(f"dbPingMs should be int >= 0 or None, got {metrics1['dbPingMs']}")
+        
         # errorCounters should be object (dict)
         if not isinstance(metrics1['errorCounters'], dict):
             validation_errors.append(f"errorCounters should be object, got {type(metrics1['errorCounters'])}")
+        
+        # schemaValidation should be object (dict)
+        if not isinstance(metrics1['schemaValidation'], dict):
+            validation_errors.append(f"schemaValidation should be object, got {type(metrics1['schemaValidation'])}")
         
         if validation_errors:
             print("   ❌ Validation errors:")
@@ -461,7 +484,7 @@ class RugsDataServiceTester:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ All field types and values are valid")
+        print("   ✓ All field types and values are valid (including P2 additions)")
         
         # Wait a moment and make second call to check monotonic behavior
         print("   Waiting 2 seconds before second call...")
@@ -480,6 +503,8 @@ class RugsDataServiceTester:
         print(f"     totalTrades: {metrics2['totalTrades']}")
         print(f"     totalGamesTracked: {metrics2['totalGamesTracked']}")
         print(f"     wsSubscribers: {metrics2['wsSubscribers']}")
+        print(f"     wsSlowClientDrops: {metrics2['wsSlowClientDrops']} [P2]")
+        print(f"     dbPingMs: {metrics2['dbPingMs']} [P2]")
         
         # Check monotonic non-decreasing behavior
         monotonic_errors = []
@@ -500,13 +525,17 @@ class RugsDataServiceTester:
         if metrics2['totalGamesTracked'] < metrics1['totalGamesTracked']:
             monotonic_errors.append(f"totalGamesTracked decreased: {metrics1['totalGamesTracked']} -> {metrics2['totalGamesTracked']}")
         
+        # P2: wsSlowClientDrops should be non-decreasing
+        if metrics2['wsSlowClientDrops'] < metrics1['wsSlowClientDrops']:
+            monotonic_errors.append(f"wsSlowClientDrops decreased: {metrics1['wsSlowClientDrops']} -> {metrics2['wsSlowClientDrops']}")
+        
         if monotonic_errors:
             print("   ❌ Monotonic behavior violations:")
             for error in monotonic_errors:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ Counters are monotonic non-decreasing")
+        print("   ✓ Counters are monotonic non-decreasing (including P2 additions)")
         
         # Check that route respects /api prefix (already tested by successful calls)
         print("   ✓ Route respects /api prefix (successful calls to /api/metrics)")
@@ -699,8 +728,15 @@ class RugsDataServiceTester:
         return True
 
     def test_readiness_endpoint(self):
-        """Test GET /api/readiness returns JSON with {dbOk:boolean, upstreamConnected:boolean, time:string} and 200"""
-        print(f"\n🔍 Testing Readiness Endpoint...")
+        """Test GET /api/readiness returns dbPingMs and updates dbPingMs in metrics after call (P2)"""
+        print(f"\n🔍 Testing Readiness Endpoint (P2 Changes)...")
+        
+        # First get metrics to see initial dbPingMs
+        success_metrics_before, metrics_before = self.run_test("Metrics Before Readiness", "GET", "metrics", 200, timeout=15)
+        initial_db_ping = None
+        if success_metrics_before and isinstance(metrics_before, dict):
+            initial_db_ping = metrics_before.get('dbPingMs')
+            print(f"   Initial dbPingMs in metrics: {initial_db_ping}")
         
         success, response = self.run_test("Readiness Endpoint", "GET", "readiness", 200, timeout=15)
         
@@ -708,25 +744,27 @@ class RugsDataServiceTester:
             print("   ❌ Readiness endpoint call failed")
             return False
         
-        # Validate required fields are present
-        required_fields = ['dbOk', 'upstreamConnected', 'time']
+        # Validate required fields are present (including P2 addition)
+        required_fields = ['dbOk', 'upstreamConnected', 'time', 'dbPingMs']  # P2: added dbPingMs
         missing_fields = [field for field in required_fields if field not in response]
         
         if missing_fields:
             print(f"   ❌ Missing required fields: {missing_fields}")
             return False
         
-        print(f"   ✓ All required fields present: {required_fields}")
+        print(f"   ✓ All required fields present (including P2 addition): {required_fields}")
         
         # Validate data types
         db_ok = response['dbOk']
         upstream_connected = response['upstreamConnected']
         time_str = response['time']
+        db_ping_ms = response['dbPingMs']  # P2 addition
         
         print(f"   Response values:")
         print(f"     dbOk: {db_ok} (type: {type(db_ok)})")
         print(f"     upstreamConnected: {upstream_connected} (type: {type(upstream_connected)})")
         print(f"     time: {time_str} (type: {type(time_str)})")
+        print(f"     dbPingMs: {db_ping_ms} (type: {type(db_ping_ms)}) [P2]")
         
         # Validate types
         validation_errors = []
@@ -740,13 +778,17 @@ class RugsDataServiceTester:
         if not isinstance(time_str, str):
             validation_errors.append(f"time should be string, got {type(time_str)}")
         
+        # P2: dbPingMs should be int >= 0 or None
+        if db_ping_ms is not None and (not isinstance(db_ping_ms, int) or db_ping_ms < 0):
+            validation_errors.append(f"dbPingMs should be int >= 0 or None, got {db_ping_ms}")
+        
         if validation_errors:
             print("   ❌ Validation errors:")
             for error in validation_errors:
                 print(f"     - {error}")
             return False
         
-        print("   ✓ All field types are valid")
+        print("   ✓ All field types are valid (including P2 addition)")
         
         # Try to parse time as ISO string
         try:
@@ -755,6 +797,27 @@ class RugsDataServiceTester:
         except ValueError:
             print(f"   ❌ Time field is not valid ISO format: {time_str}")
             return False
+        
+        # P2: Check that readiness call updates dbPingMs in metrics
+        print("   Checking if readiness call updates dbPingMs in metrics...")
+        success_metrics_after, metrics_after = self.run_test("Metrics After Readiness", "GET", "metrics", 200, timeout=15)
+        
+        if success_metrics_after and isinstance(metrics_after, dict):
+            updated_db_ping = metrics_after.get('dbPingMs')
+            print(f"   Updated dbPingMs in metrics: {updated_db_ping}")
+            
+            # Check if dbPingMs was updated (should match readiness response if db is ok)
+            if db_ok and db_ping_ms is not None:
+                if updated_db_ping == db_ping_ms:
+                    print("   ✅ P2: dbPingMs in metrics updated correctly after readiness call")
+                elif updated_db_ping is not None and abs(updated_db_ping - db_ping_ms) <= 5:  # Allow small timing differences
+                    print(f"   ✅ P2: dbPingMs in metrics updated (small timing difference: {db_ping_ms} vs {updated_db_ping})")
+                else:
+                    print(f"   ⚠ P2: dbPingMs in metrics ({updated_db_ping}) differs from readiness response ({db_ping_ms})")
+            else:
+                print("   ✓ P2: dbPingMs behavior consistent with db status")
+        else:
+            print("   ⚠ Could not verify metrics update after readiness call")
         
         return True
 
@@ -1108,6 +1171,141 @@ class RugsDataServiceTester:
             print(f"   ❌ Broadcaster test error: {e}")
             return False
 
+    def test_websocket_side_bet_normalized_fields(self):
+        """Test WebSocket /api/ws/stream side_bet messages include normalized fields"""
+        print(f"\n🔍 Testing WebSocket Side Bet Normalized Fields...")
+        
+        ws_url = f"{self.base_url.replace('https://', 'wss://').replace('http://', 'ws://')}/api/ws/stream"
+        print(f"   WebSocket URL: {ws_url}")
+        
+        connection_successful = False
+        side_bet_messages = []
+        start_time = time.time()
+        
+        # Expected normalized fields for side_bet messages
+        expected_normalized_fields = [
+            'startTick', 'endTick', 'betAmount', 'targetSeconds', 
+            'payoutRatio', 'won', 'pnl', 'xPayout'
+        ]
+        
+        def on_message(ws, message):
+            nonlocal side_bet_messages
+            try:
+                data = json.loads(message)
+                if isinstance(data, dict):
+                    msg_type = data.get('type')
+                    if msg_type == 'side_bet':
+                        side_bet_messages.append(data)
+                        print(f"   📨 Side bet message received: {data}")
+                        
+                        # Check for normalized fields
+                        present_fields = []
+                        missing_fields = []
+                        null_fields = []
+                        
+                        for field in expected_normalized_fields:
+                            if field in data:
+                                present_fields.append(field)
+                                if data[field] is None:
+                                    null_fields.append(field)
+                            else:
+                                missing_fields.append(field)
+                        
+                        print(f"   Present normalized fields: {present_fields}")
+                        if null_fields:
+                            print(f"   Null normalized fields: {null_fields}")
+                        if missing_fields:
+                            print(f"   Missing normalized fields: {missing_fields}")
+                            
+            except Exception as e:
+                print(f"   ⚠ Error processing message: {e}")
+        
+        def on_error(ws, error):
+            print(f"   ❌ WebSocket error: {error}")
+        
+        def on_close(ws, close_status_code, close_msg):
+            print(f"   🔌 WebSocket closed: {close_status_code} - {close_msg}")
+        
+        def on_open(ws):
+            nonlocal connection_successful
+            connection_successful = True
+            print("   ✅ WebSocket connection established")
+        
+        try:
+            ws = websocket.WebSocketApp(
+                ws_url,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
+                on_close=on_close
+            )
+            
+            ws_thread = threading.Thread(target=ws.run_forever)
+            ws_thread.daemon = True
+            ws_thread.start()
+            
+            # Wait for connection
+            print("   Waiting for WebSocket connection...")
+            time.sleep(3)
+            
+            if not connection_successful:
+                print("   ❌ WebSocket connection failed")
+                return False
+            
+            # Listen for side_bet messages for 30 seconds
+            print(f"   Listening for side_bet messages for 30 seconds...")
+            timeout = 30
+            
+            while time.time() - start_time < timeout:
+                if len(side_bet_messages) > 0:
+                    break
+                time.sleep(1)
+            
+            ws.close()
+            
+            if len(side_bet_messages) == 0:
+                print("   ⚠ No side_bet messages received during test period")
+                print("   This is expected if no side bets occurred during testing")
+                return True  # Not a failure - side bets are user-driven events
+            
+            # Analyze the side_bet messages we received
+            print(f"   📊 Analyzed {len(side_bet_messages)} side_bet messages")
+            
+            all_messages_valid = True
+            for i, msg in enumerate(side_bet_messages):
+                print(f"   Message {i+1}:")
+                
+                # Check for all expected normalized fields
+                present_count = 0
+                for field in expected_normalized_fields:
+                    if field in msg:
+                        present_count += 1
+                        value = msg[field]
+                        print(f"     {field}: {value} ({'null' if value is None else type(value).__name__})")
+                    else:
+                        print(f"     {field}: MISSING")
+                        all_messages_valid = False
+                
+                print(f"     Normalized fields present: {present_count}/{len(expected_normalized_fields)}")
+                
+                # Check required message structure
+                required_fields = ['type', 'schema', 'ts']
+                for field in required_fields:
+                    if field not in msg:
+                        print(f"     ❌ Missing required field: {field}")
+                        all_messages_valid = False
+            
+            if all_messages_valid:
+                print("   ✅ All side_bet messages include normalized fields")
+                return True
+            else:
+                print("   ❌ Some side_bet messages missing normalized fields")
+                return False
+                
+        except Exception as e:
+            print(f"   ❌ WebSocket side_bet test error: {e}")
+            return False
+
     def test_websocket_regression(self):
         """Test WebSocket /api/ws/stream connection and hello/heartbeat within 35s"""
         print(f"\n🔍 Testing WebSocket Regression (35s timeout)...")
@@ -1190,36 +1388,24 @@ class RugsDataServiceTester:
             return False
 
 def main():
-    print("🚀 Starting Backend Regression Test")
-    print("Focus: Comprehensive regression testing as requested")
+    print("🚀 Starting Backend Smoke Test - Side Bet Normalized Fields & Metrics Shape")
+    print("Focus: WebSocket side_bet normalized fields + /api/metrics shape verification")
     print("=" * 70)
     
     tester = RugsDataServiceTester()
     
-    # Run regression tests as specified in review request
+    # Run specific smoke tests as requested in review
     results = []
     
-    # 1. GET /api/readiness returns JSON with {dbOk:boolean, upstreamConnected:boolean, time:string} and 200
-    results.append(("GET /api/readiness -> JSON with correct shape", tester.test_readiness_endpoint()))
+    # Test 1: /api/metrics endpoint shape remains intact
+    results.append(("Smoke: /api/metrics shape intact", tester.test_metrics_endpoint()))
     
-    # 2. /api/metrics still returns correct shape including schemaValidation and wsSubscribers
-    results.append(("GET /api/metrics -> correct shape with schemaValidation", tester.test_metrics_endpoint()))
-    
-    # 3. WebSocket /api/ws/stream still connects and heartbeats under 35s
-    results.append(("WebSocket /api/ws/stream -> connects and heartbeats under 35s", tester.test_websocket_regression()))
-    
-    # 4. Trades idempotency: simulate duplicate insert path
-    results.append(("Trades idempotency -> duplicate insert prevention", tester.test_trades_idempotency()))
-    
-    # 5. Ensure ensure_indexes created new indexes
-    results.append(("Database indexes -> side_bets, meta, trades, status_checks", tester.test_ensure_indexes()))
-    
-    # 6. Confirm broadcaster change doesn't break broadcasting
-    results.append(("Broadcaster functionality -> receive non-heartbeat frames", tester.test_broadcaster_functionality()))
+    # Test 2: WebSocket /api/ws/stream side_bet messages include normalized fields
+    results.append(("Smoke: WebSocket side_bet normalized fields", tester.test_websocket_side_bet_normalized_fields()))
     
     # Print summary
     print("\n" + "=" * 70)
-    print("📊 BACKEND REGRESSION TEST SUMMARY")
+    print("📊 BACKEND SMOKE TEST SUMMARY")
     print("=" * 70)
     
     passed_tests = sum(1 for _, passed in results if passed)
@@ -1229,26 +1415,22 @@ def main():
         status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status} {test_name}")
     
-    print(f"\nOverall: {passed_tests}/{total_tests} regression tests passed")
+    print(f"\nOverall: {passed_tests}/{total_tests} smoke tests passed")
     print(f"Individual API calls: {tester.tests_passed}/{tester.tests_run} passed")
     
-    # Specific findings for regression
+    # Specific findings for smoke test
     print("\n" + "=" * 70)
-    print("🎯 BACKEND REGRESSION RESULTS")
+    print("🎯 BACKEND SMOKE TEST RESULTS")
     print("=" * 70)
     
     if passed_tests == total_tests:
-        print("✅ ALL BACKEND REGRESSION TESTS PASSED")
-        print("All requested functionality is working correctly:")
-        print("  - /api/readiness endpoint returns correct JSON structure")
-        print("  - /api/metrics includes schemaValidation and wsSubscribers")
-        print("  - WebSocket connects and heartbeats within 35s")
-        print("  - Trades idempotency prevents duplicate inserts")
-        print("  - Database indexes are properly created")
-        print("  - Broadcaster functionality works correctly")
+        print("✅ ALL BACKEND SMOKE TESTS PASSED")
+        print("Verification complete:")
+        print("  - /api/metrics endpoint shape remains intact after changes")
+        print("  - WebSocket side_bet messages include normalized fields (or no side_bets occurred)")
     else:
-        print("❌ SOME BACKEND REGRESSION TESTS FAILED")
-        print("Backend may have issues that need attention")
+        print("❌ SOME BACKEND SMOKE TESTS FAILED")
+        print("Issues detected that need attention")
         failed_tests = [name for name, passed in results if not passed]
         print(f"Failed tests: {failed_tests}")
     

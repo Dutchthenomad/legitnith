@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict, Set, Tuple
+from typing import List, Optional, Any, Dict, Set, Tuple, Callable
 from collections import deque
 import uuid
 import time
@@ -27,10 +27,20 @@ except Exception:
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection (env provided)
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection (env provided) with validation and optional timeouts
+MONGO_URL = os.environ.get('MONGO_URL')
+DB_NAME = os.environ.get('DB_NAME')
+if not MONGO_URL or not DB_NAME:
+    raise RuntimeError("Missing required environment variables: MONGO_URL and/or DB_NAME")
+# Optional Mongo timeouts (ms)
+try:
+    _ss = int(os.environ.get('MONGO_SERVER_SELECTION_TIMEOUT_MS', '5000'))
+    _ct = int(os.environ.get('MONGO_CONNECT_TIMEOUT_MS', '5000'))
+    _st = int(os.environ.get('MONGO_SOCKET_TIMEOUT_MS', '10000'))
+except Exception:
+    _ss, _ct, _st = 5000, 5000, 10000
+client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=_ss, connectTimeoutMS=_ct, socketTimeoutMS=_st)
+db = client[DB_NAME]
 
 SCHEMA_DIR = ROOT_DIR.parent / "docs" / "ws-schema"
 
@@ -560,7 +570,7 @@ class Broadcaster:
                         self.connections.discard(ws)
             # metrics hook for slow/broken clients
             try:
-                metrics.incr_error("ws_slow_client_drop")
+                metrics.incr_ws_drop(len(dead))
             except Exception:
                 pass
 
@@ -576,11 +586,16 @@ class Metrics:
         self.error_counts: Dict[str, int] = {}
         self.msg_times = deque(maxlen=600)  # ~10 minutes if 1s buckets
         self.last_event_at: Optional[datetime] = None
+        self.last_error_at: Optional[datetime] = None
         # schema validation counters
         self.schema_validation: Dict[str, Any] = {
             "total": 0,
             "perEvent": {}
         }
+        # broadcaster metrics
+        self.ws_slow_client_drops = 0
+        # db ping metrics
+        self.last_db_ping_ms: Optional[int] = None
 
     def incr_message(self):
         self.total_messages += 1
@@ -597,6 +612,10 @@ class Metrics:
 
     def incr_error(self, key: str):
         self.error_counts[key] = self.error_counts.get(key, 0) + 1
+        self.last_error_at = now_utc()
+
+    def incr_ws_drop(self, n: int = 1):
+        self.ws_slow_client_drops += int(n)
 
     def msgs_per_sec_window(self, window_seconds: int = 60) -> float:
         if not self.msg_times:
@@ -786,7 +805,7 @@ class RugsSocketService:
         if data.get("active") and (self.current_game_id != game_id):
             self.current_game_id = game_id
             metrics.add_game(game_id)
-            self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}}
+            self.game_stats[game_id] = {"peak": price, "ticks": tick_count, "last_price": price, "last_tick": tick_count, "god_candle_seen": False, "quality": {}, "last_seen_ts": time.time()}
 
             await self.db.meta.update_one({"key": "current_game_id"}, {"$set": {"key": "current_game_id", "value": game_id, "updatedAt": now_utc()}}, upsert=True)
 
@@ -862,6 +881,7 @@ class RugsSocketService:
 
             stats["last_price"] = price
             stats["last_tick"] = tick_count
+            stats["last_seen_ts"] = time.time()
             self.game_stats[game_id] = stats
 
         # Insert snapshot (observability)
@@ -957,7 +977,24 @@ class RugsSocketService:
             if v_key:
                 doc["validation"] = {"ok": bool(v_ok), "schema": v_key, "error": (v_err if not v_ok else None)}
             await self.db.side_bets.insert_one(doc)
-            await broadcaster.broadcast({"schema": "v1", "type": "side_bet", "event": event_type, "gameId": doc.get("gameId"), "playerId": doc.get("playerId"), "validation": {"ok": bool(v_ok), "schema": v_key}, "ts": now_utc().isoformat()})
+            await broadcaster.broadcast({
+                "schema": "v1",
+                "type": "side_bet",
+                "event": event_type,
+                "gameId": doc.get("gameId"),
+                "playerId": doc.get("playerId"),
+                # Include commonly used normalized fields for filtering/visibility
+                "startTick": doc.get("startTick"),
+                "endTick": doc.get("endTick"),
+                "betAmount": doc.get("betAmount"),
+                "targetSeconds": doc.get("targetSeconds"),
+                "payoutRatio": doc.get("payoutRatio"),
+                "won": doc.get("won"),
+                "pnl": doc.get("pnl"),
+                "xPayout": doc.get("xPayout"),
+                "validation": {"ok": bool(v_ok), "schema": v_key},
+                "ts": now_utc().isoformat()
+            })
         except Exception as e:
             logger.error(f"Side bet store error: {e}")
             metrics.incr_error("side_bet_insert")
@@ -1032,12 +1069,15 @@ async def metrics_endpoint():
         "currentSocketConnected": bool(auth_svc and auth_svc.connected),
         "socketId": (auth_svc.socket_id if auth_svc else None),
         "lastEventAt": (metrics.last_event_at.isoformat() if metrics.last_event_at else None),
+        "lastErrorAt": (metrics.last_error_at.isoformat() if metrics.last_error_at else None),
         "totalMessagesProcessed": metrics.total_messages,
         "totalTrades": metrics.total_trades,
         "totalGamesTracked": len(metrics.total_games_seen),
         "messagesPerSecond1m": round(mps_1m, 3),
         "messagesPerSecond5m": round(mps_5m, 3),
         "wsSubscribers": connected_clients,
+        "wsSlowClientDrops": metrics.ws_slow_client_drops,
+        "dbPingMs": metrics.last_db_ping_ms,
         "errorCounters": metrics.error_counts,
         "schemaValidation": metrics.schema_validation,
     }
@@ -1136,13 +1176,18 @@ async def game_by_id(game_id: str):
 @api_router.get("/readiness")
 async def readiness():
     db_ok = False
+    ping_ms = None
+    t0 = time.time()
     try:
         await db.command({"ping": 1})
         db_ok = True
+        ping_ms = int((time.time() - t0) * 1000)
+        metrics.last_db_ping_ms = ping_ms
     except Exception as e:
         logger.warning(f"Mongo ping failed: {e}")
+        metrics.incr_error("db_ping_failed")
     upstream_ok = bool(auth_svc and auth_svc.connected)
-    return {"dbOk": db_ok, "upstreamConnected": upstream_ok, "time": now_utc().isoformat()}
+    return {"dbOk": db_ok, "dbPingMs": ping_ms, "upstreamConnected": upstream_ok, "time": now_utc().isoformat()}
 
 @api_router.get("/games/{game_id}/quality")
 async def game_quality(game_id: str):
@@ -1157,6 +1202,21 @@ async def quality_list(limit: int = 50):
     for r in rows:
         out.append({"id": r.get("id"), "quality": r.get("quality")})
     return {"items": out}
+
+    # Periodic prune of in-memory game_stats to prevent unbounded growth
+    try:
+        if auth_svc and isinstance(auth_svc.game_stats, dict):
+            now_ts = time.time()
+            # Remove games not updated in > 24h or keep only most recent 200 by last_seen_ts
+            now_sec = time.time()
+            auth_svc.game_stats = {k: v for k, v in auth_svc.game_stats.items() if (now_sec - v.get("last_seen_ts", now_sec)) <= 86400}
+            if len(auth_svc.game_stats) > 250:
+                # sort by last_seen_ts desc
+                keep = sorted(auth_svc.game_stats.items(), key=lambda kv: (kv[1].get("last_seen_ts", 0)), reverse=True)[:200]
+                auth_svc.game_stats = dict(keep)
+
+    except Exception as e:
+        logger.warning(f"game_stats prune warn: {e}")
 
 @api_router.get("/prng/tracking")
 async def prng_tracking(limit: int = 50):

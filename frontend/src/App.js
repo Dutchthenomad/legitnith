@@ -206,7 +206,18 @@ const FilterToolbar = ({
   setRules,
 }) => {
   const addRule = () => {
-    setRules((r) => (r.length >= 5 ? r : [...r, { event: "gameStateUpdate", field: "gameId", op: "eq", val: "" }]));
+    setRules((r) => {
+      if (r.length >= 5) return r;
+      const defaultEvent = (schemaItems && schemaItems.length > 0)
+        ? (schemaItems.find((it) => it.key === "gameStateUpdate")?.key || schemaItems[0].key)
+        : "gameStateUpdate";
+      const fields = (() => {
+        const it = (schemaItems || []).find((i) => i.key === defaultEvent);
+        return it && it.properties ? Object.keys(it.properties) : [];
+      })();
+      const defaultField = fields.includes("gameId") ? "gameId" : (fields[0] || "");
+      return [...r, { event: defaultEvent, field: defaultField, op: "eq", val: "" }];
+    });
   };
   const removeRule = (idx) => {
     setRules((r) => r.filter((_, i) => i !== idx));
@@ -317,8 +328,12 @@ const MessageList = ({ items }) => {
 function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [buffer] = useState(() => new RingBuffer(10000));
-  const [filters, setFilters] = useState({ gs: true, trade: true, god: true, rug: true, side: true });
-  const [regexStr, setRegexStr] = useState("");
+  const [filters, setFilters] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem("hud_presets") || "[]")[0]?.filters) || { gs: true, trade: true, god: true, rug: true, side: true }; } catch(_) { return { gs: true, trade: true, god: true, rug: true, side: true }; }
+  });
+  const [regexStr, setRegexStr] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem("hud_presets") || "[]")[0]?.regex) || ""; } catch(_) { return ""; }
+  });
   const [regexValid, setRegexValid] = useState(true);
   const [lastEventIso, setLastEventIso] = useState(null);
 
@@ -339,7 +354,12 @@ function App() {
 
   // schema items
   const schemaItems = useMemo(() => schemasResp?.items || [], [schemasResp]);
-  const [rules, setRules] = useState([]);
+  const [rules, setRules] = useState(() => {
+    try {
+      const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
+      return presets[0]?.rules || [];
+    } catch (_) { return []; }
+  });
 
   // migrate presets
   useEffect(() => {
@@ -380,6 +400,8 @@ function App() {
       const entry = { filters, regex: regexStr, rules };
       const next = [entry, ...presets].slice(0, 5);
       localStorage.setItem("hud_presets", JSON.stringify(next));
+      // force a tick so buttons visually reflect available presets
+      setRules((r) => [...r]);
     } catch (_) {}
   };
 
@@ -388,9 +410,9 @@ function App() {
       const presets = JSON.parse(localStorage.getItem("hud_presets") || "[]");
       const p = presets[idx];
       if (p) {
-        setFilters(p.filters || filters);
+        setFilters({ ...filters, ...(p.filters || {}) });
         setRegexStr(p.regex || "");
-        setRules(p.rules || []);
+        setRules(Array.isArray(p.rules) ? p.rules : []);
       }
     } catch (_) {}
   };
@@ -431,23 +453,41 @@ function App() {
   }, [buffer]);
 
   // map outbound type to inbound schema key
-  const outboundToSchemaKey = useMemo(() => {
+  const outboundToSchemaKeys = useMemo(() => {
     const map = {};
     (schemaItems || []).forEach((it) => {
-      if (it.outboundType) map[it.outboundType] = it.key;
+      if (it.outboundType) {
+        if (!map[it.outboundType]) map[it.outboundType] = new Set();
+        map[it.outboundType].add(it.key);
+      }
     });
     return map;
   }, [schemaItems]);
 
   const applyRulesToMessage = (m) => {
     if (!rules || rules.length === 0) return true;
-    // map outbound type to schema key
-    const schemaKey = outboundToSchemaKey[m.type];
-    const relevant = rules.filter((r) => r.event === schemaKey);
+    // map outbound type to one or more schema keys
+    const schemaKeysSet = outboundToSchemaKeys[m.type];
+    const relevant = rules.filter((r) => {
+      if (!schemaKeysSet) return false;
+      return schemaKeysSet.has(r.event);
+    });
     if (relevant.length === 0) return true;
     try {
       return relevant.every((r) => {
-        const val = m[r.field];
+        // Support dot-paths if needed (e.g., payload.nested)
+        const getVal = (obj, path) => {
+          try {
+            if (!path) return undefined;
+            if (path.includes('.')) {
+              return path.split('.').reduce((o, k) => (o ? o[k] : undefined), obj);
+            }
+            return obj[path];
+          } catch (_) {
+            return undefined;
+          }
+        };
+        const val = getVal(m, r.field);
         switch (r.op) {
           case "eq":
             return String(val) === String(r.val);
@@ -506,7 +546,8 @@ function App() {
   }, [buffer, filters, regexStr, regexValid, rules, schemaItems]);
 
   // Minimal charts (SVG only)
-  const DurationHistogramSVG = ({ items }) => {
+  const DurationHistogramSVG = ({ items }) => { // container is a hud-card; ensure SVG is responsive within
+
     const ticks = (items || []).map((g) => Number(g.totalTicks || 0)).filter((n) => Number.isFinite(n) && n >= 0);
     const N = Math.min(200, ticks.length);
     const arr = ticks.slice(0, N);
@@ -522,19 +563,21 @@ function App() {
     return (
       <div className="hud-card p-3">
         <div className="text-xs mb-2 text-muted-foreground">Duration Histogram (ticks)</div>
-        <svg width={w} height={h}>
-          {counts.map((c, i) => {
-            const bh = (c / maxCount) * (h - 20);
-            return (
-              <rect key={i} x={pad + i * barW + 1} y={h - bh - 10} width={barW - 2} height={bh} fill="#ffc700" />
-            );
-          })}
-        </svg>
+        <div style={{ width: "100%", overflow: "hidden" }}>
+          <svg width={w} height={h} style={{ maxWidth: "100%", display: "block" }}>
+            {counts.map((c, i) => {
+              const bh = (c / maxCount) * (h - 20);
+              return (
+                <rect key={i} x={pad + i * barW + 1} y={h - bh - 10} width={barW - 2} height={bh} fill="#ffc700" />
+              );
+            })}
+          </svg>
+        </div>
       </div>
     );
   };
 
-  const PeakSparklineSVG = ({ items }) => {
+  const PeakSparklineSVG = ({ items }) => { // ensure it respects container width
     const peaks = (items || []).map((g) => Number(g.peakMultiplier || 0)).filter((n) => Number.isFinite(n) && n > 0);
     const N = Math.min(200, peaks.length);
     const arr = peaks.slice(0, N).reverse(); // newest on right
@@ -550,7 +593,7 @@ function App() {
     return (
       <div className="hud-card p-3">
         <div className="text-xs mb-2 text-muted-foreground">Peak Multiplier Sparkline</div>
-        <svg width={w} height={h}>
+        <svg width={w} height={h} style={{ maxWidth: "100%", display: "block" }}>
           <polyline points={pts.join(" ")} fill="none" stroke="#ef7104" strokeWidth="2" />
         </svg>
       </div>
